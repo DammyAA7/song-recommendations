@@ -27,7 +27,9 @@ INSERT INTO artists (name, genre) VALUES
 ('Doja Cat', 'Pop'),
 ('Lil Nas X', 'Hip-Hop'),
 ('The Kid LAROI', 'Pop'),
-('Ed Sheeran', 'Pop');
+('Ed Sheeran', 'Pop'),
+('Glass Animals', 'Indie'),
+('BTS', 'K-Pop');
 
 INSERT INTO songs (title, artist_id, year, play_count) VALUES 
 ('Blinding Lights', 1, 2019, 1500),
