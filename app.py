@@ -29,20 +29,23 @@ def recommend_artist(song_id):
     conn = get_db_connection()  # Establish a database connection
     # Execute a SQL query to retrieve the artist_id of the song with the given song_id
     song = conn.execute('''
-                        SELECT songs.artist_id
+                        SELECT artists.genre
                         FROM songs
+                        JOIN artists ON songs.artist_id = artists.artist_id
                         WHERE songs.song_id = ?
                         ''', (song_id,)).fetchone()
     if song is None:
         return jsonify({'error': 'Song not found'}), 404
     
-    # Execute a SQL query to retrieve the song details of songs by the same artist 
-    artist_id = song['artist_id']
+    # Execute a SQL query to retrieve the song details of songs by the same genre 
+    genre = song['genre']
+
     recommendations = conn.execute('''
-                                    SELECT *
+                                    SELECT songs.song_id, songs.title, artists.name as artist, songs.play_count, artists.genre
                                     FROM songs
-                                    WHERE songs.artist_id = ? AND songs.song_id != ?
-                                    ''', (artist_id,song_id)).fetchall()
+                                    JOIN artists ON songs.artist_id = artists.artist_id
+                                    WHERE artists.genre = ? AND songs.song_id != ?
+                                    ''', (genre,song_id)).fetchall()
     conn.close()
     return jsonify([dict(song) for song in recommendations])
     
