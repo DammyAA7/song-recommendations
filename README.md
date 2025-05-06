@@ -6,24 +6,24 @@ A simple Flask application with an SQLite database that provides song data and r
 
 ## Features
 
-* Fetch all songs with artist names, release years, and play counts.
-* Get song recommendations based on the genre of a given song.
-* Easy setup with SQLite.
+- Fetch all songs with artist names, release years, and play counts.
+- Get song recommendations based on the genre of a given song.
+- Easy setup with SQLite.
 
 ---
 
 ## Technologies
 
-* Python 3
-* Flask
-* SQLite
+- Python 3
+- Flask
+- SQLite
 
 ---
 
 ## Prerequisites
 
-* Python 3.6 or higher installed on your system.
-* `pip` for package management.
+- Python 3.6 or higher installed on your system.
+- `pip` for package management.
 
 ---
 
@@ -32,8 +32,8 @@ A simple Flask application with an SQLite database that provides song data and r
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/your-username/music-catalog-api.git
-   cd music-catalog-api
+   git clone https://github.com/DammyAA7/song-recommendations.git
+   cd song-recommendations
    ```
 
 2. **Create and activate a virtual environment**
@@ -143,9 +143,9 @@ The project uses an SQLite database named `catalog.db`. A schema script is provi
 
 ### Get All Songs
 
-* **URL:** `/songs`
-* **Method:** `GET`
-* **Description:** Returns a JSON list of all songs with their IDs, titles, artist names, release years, and play counts.
+- **URL:** `/songs`
+- **Method:** `GET`
+- **Description:** Returns a JSON list of all songs with their IDs, titles, artist names, release years, and play counts.
 
 #### Sample Request
 
@@ -170,12 +170,12 @@ curl http://127.0.0.1:5000/songs
 
 ### Recommend by Artist Genre
 
-* **URL:** `/recommend/artist/<song_id>`
-* **Method:** `GET`
-* **Description:** Returns a JSON list of songs by the same genre as the song with the given `song_id`, excluding itself.
-* **URL Parameters:**
+- **URL:** `/recommend/artist/<song_id>`
+- **Method:** `GET`
+- **Description:** Returns a JSON list of songs by the same genre as the song with the given `song_id`, excluding itself.
+- **URL Parameters:**
 
-  * `song_id`: integer ID of the reference song.
+  - `song_id`: integer ID of the reference song.
 
 #### Sample Request
 
@@ -199,7 +199,7 @@ curl http://127.0.0.1:5000/recommend/artist/1
 
 #### Error Handling
 
-* If the `song_id` does not exist, the API returns a 404 status and an error message:
+- If the `song_id` does not exist, the API returns a 404 status and an error message:
 
 ```json
 { "error": "Song not found" }
@@ -209,9 +209,9 @@ curl http://127.0.0.1:5000/recommend/artist/1
 
 ## Next Steps
 
-* Add POST endpoints to create, update, and delete songs and artists.
-* Add user authentication and like tracking.
-* Switch to a more robust database like PostgreSQL.
+- Add POST endpoints to create, update, and delete songs and artists.
+- Add user authentication and like tracking.
+- Switch to a more robust database like PostgreSQL.
 
 ---
 
