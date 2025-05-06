@@ -61,7 +61,7 @@ The project uses an SQLite database named `catalog.db`. A schema script is provi
    ```bash
    sqlite3 catalog.db < /path/to/schema.sql
    ```
-   
+
 ---
 
 ## Running the Application
@@ -69,7 +69,7 @@ The project uses an SQLite database named `catalog.db`. A schema script is provi
 1. **Start the Flask server**
 
    ```bash
-   python app.py
+   python3 app.py
    ```
 
 2. The server runs by default at `http://127.0.0.1:5000/` in debug mode.
@@ -146,7 +146,8 @@ curl http://127.0.0.1:5000/recommend/artist/1
 
 ## Next Steps
 
-- Add POST endpoints to create, update, and delete songs and artists.
+- Add POST endpoints to create, update, and delete song recommendations.
+- Create interactive frontend (preferebly nextjs in TypeScript)
 - Add user authentication and like tracking.
 - Switch to a more robust database like PostgreSQL.
 
