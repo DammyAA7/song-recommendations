@@ -10,6 +10,11 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row  # This allows us to access columns by name
     return conn
 
+# Define a route for the root URL
+@app.route('/')
+def index():
+    return 'Welcome to the Song Recommendation API!'
+
 # Define a route to get songs
 @app.route('/songs', methods=['GET'])
 def get_songs():
