@@ -56,75 +56,12 @@ A simple Flask application with an SQLite database that provides song data and r
 
 The project uses an SQLite database named `catalog.db`. A schema script is provided to set up the tables and seed data.
 
-1. **Open the SQLite shell**
+**Run the command in your terminal to run the schema.sql file and create the database**
 
    ```bash
-   sqlite3 catalog.db
+   sqlite3 catalog.db < /path/to/schema.sql
    ```
-
-2. **Run the schema and seed SQL**
-
-   ```sql
-   -- Create tables
-   CREATE TABLE IF NOT EXISTS songs (
-     song_id INTEGER PRIMARY KEY AUTOINCREMENT,
-     title VARCHAR(255) NOT NULL,
-     artist_id INT NOT NULL,
-     year INT,
-     play_count INT DEFAULT 0
-   );
-
-   CREATE TABLE IF NOT EXISTS artists (
-     artist_id INTEGER PRIMARY KEY AUTOINCREMENT,
-     name VARCHAR(255) NOT NULL,
-     genre VARCHAR(255)
-   );
-
-   CREATE TABLE IF NOT EXISTS likes (
-     song_id INT NOT NULL,
-     user_id INT NOT NULL,
-     PRIMARY KEY (song_id, user_id)
-   );
-
-   -- Insert sample artists
-   INSERT INTO artists (name, genre) VALUES
-     ('The Weeknd', 'R&B'),
-     ('Harry Styles', 'Pop'),
-     ('Dua Lipa', 'Pop'),
-     ('Justin Bieber', 'Pop'),
-     ('Olivia Rodrigo', 'Pop'),
-     ('Doja Cat', 'Pop'),
-     ('Lil Nas X', 'Hip-Hop'),
-     ('The Kid LAROI', 'Pop'),
-     ('Ed Sheeran', 'Pop'),
-     ('Glass Animals', 'Indie'),
-     ('BTS', 'K-Pop');
-
-   -- Insert sample songs
-   INSERT INTO songs (title, artist_id, year, play_count) VALUES
-     ('Blinding Lights', 1, 2019, 1500),
-     ('Watermelon Sugar', 2, 2019, 1200),
-     ('Levitating', 3, 2020, 1100),
-     ('Peaches', 4, 2021, 900),
-     ('Save Your Tears', 1, 2020, 1300),
-     ('Good 4 U', 5, 2021, 800),
-     ('Kiss Me More', 6, 2021, 700),
-     ('Drivers License', 5, 2021, 1400),
-     ('Montero', 7, 2021, 1000),
-     ('Stay', 8, 2021, 950),
-     ('Bad Habits', 9, 2021, 850),
-     ('Deja Vu', 5, 2021, 750),
-     ('Industry Baby', 7, 2021, 650),
-     ('Heat Waves', 10, 2020, 600),
-     ('Butter', 11, 2021, 550);
-   ```
-
-3. **Exit the shell**
-
-   ```bash
-   .exit
-   ```
-
+   
 ---
 
 ## Running the Application
