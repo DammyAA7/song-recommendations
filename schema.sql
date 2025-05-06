@@ -1,3 +1,38 @@
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY AUTOINCREMENT, -- Unique identifier for each user, auto-incremented
+    forename VARCHAR(255) NOT NULL, -- Name of the user, cannot be null
+    username VARCHAR(255) NOT NULL UNIQUE, -- Username of the user, cannot be null and must be unique
+    email VARCHAR(255) NOT NULL UNIQUE, -- Email of the user, cannot be null and must be unique
+    password_hash VARCHAR(255) NOT NULL, -- Hashed password of the user, cannot be null
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- Timestamp when the user was created, defaults to current time
+);
+
+CREATE TABLE IF NOT EXISTS friends (
+    user_id INT NOT NULL, -- Identifier for the user, cannot be null
+    friend_id INT NOT NULL, -- Identifier for the friend, cannot be null
+    PRIMARY KEY (user_id, friend_id), -- Composite primary key
+    FOREIGN KEY (user_id) REFERENCES users(user_id), -- Foreign key reference to users table
+    FOREIGN KEY (friend_id) REFERENCES users(user_id) -- Foreign key reference to users table
+);
+
+CREATE TABLE IF NOT EXISTS recommendationSong (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, -- Unique identifier for each recommendation, auto-incremented
+    recommendationId INT NOT NULL, -- Identifier for the recommendation, cannot be null
+    song_id INT NOT NULL, -- Identifier for the song, cannot be null
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp when the recommendation was created, defaults to current time
+    FOREIGN KEY (recommendationId) REFERENCES recommendations(id), -- Foreign key reference to recommendations table
+    FOREIGN KEY (song_id) REFERENCES songs(song_id) -- Foreign key reference to songs table
+);
+
+CREATE TABLE IF NOT EXISTS recommendations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, -- Unique identifier for each recommendation, auto-incremented
+    user_id INT NOT NULL, -- Identifier for the user, cannot be null
+    friend_id INT NOT NULL, -- Identifier for the friend, cannot be null
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp when the recommendation was created, defaults to current time
+    FOREIGN KEY (user_id) REFERENCES users(user_id), -- Foreign key reference to users table
+    FOREIGN KEY (friend_id) REFERENCES users(user_id) -- Foreign key reference to users table
+);
+
 CREATE TABLE IF NOT EXISTS songs (
     song_id INTEGER PRIMARY KEY AUTOINCREMENT, -- Unique identifier for each song, auto-incremented
     title VARCHAR(255) NOT NULL, -- Title of the song, cannot be null
@@ -17,6 +52,37 @@ CREATE TABLE IF NOT EXISTS likes (
     user_id INT NOT NULL, -- Identifier for the user, cannot be null
     PRIMARY KEY (song_id, user_id) -- Composite primary key
 );
+
+INSERT INTO users (forename, username, email, password_hash) VALUES 
+('John', 'john_doe', 'johndoe@email.com', 'hashed_password_1'),
+('Jane', 'jane_doe', 'janedoe@email.com', 'hashed_password_2');
+
+INSERT INTO friends (user_id, friend_id) VALUES 
+(1, 2), -- John is friends with Jane
+(2, 1); -- Jane is friends with John
+INSERT INTO likes (song_id, user_id) VALUES 
+(1, 1), -- John likes song 1
+(11, 1), -- John likes song 11
+(7, 1), -- John likes song 7
+(8, 1), -- John likes song 8
+(1, 2), -- Jane likes song 1
+(2, 2), -- Jane likes song 2
+(5, 2), -- Jane likes song 5
+(3, 2), -- Jane likes song 3
+(4, 2), -- Jane likes song 4
+(6, 2), -- Jane likes song 6
+(9, 2); -- Jane likes song 9
+
+INSERT INTO recommendations (user_id, friend_id) VALUES 
+(1, 2), -- John recommends to Jane
+(2, 1); -- Jane recommends to John
+
+INSERT INTO recommendationSong (recommendationId, song_id) VALUES 
+(1, 1), -- John recommends song 1 to Jane
+(1, 2), -- John recommends song 2 to Jane
+(1, 3), -- John recommends song 3 to Jane
+(2, 4), -- Jane recommends song 4 to John
+(2, 5); -- Jane recommends song 5 to John
 
 INSERT INTO artists (name, genre) VALUES 
 ('The Weeknd', 'R&B'),
