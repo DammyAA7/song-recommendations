@@ -15,6 +15,23 @@ def get_db_connection():
 def index():
     return 'Welcome to the Song Recommendation API!'
 
+# Define a route to get user recommendations
+@app.route('/recommend/user/<int:user_id>', methods=['GET'])
+def get_user_recommendations(user_id):
+    conn = get_db_connection()  # Establish a database connection
+    # Execute a SQL query to retrieve song details for the given user_id
+    recommendations = conn.execute('''
+                                SELECT songs.song_id, songs.title, artists.name AS artist, songs.year, songs.play_count, r.user_id AS recommended_by
+                                FROM recommendations r
+                                JOIN recommendationSong rs ON r.id = rs.recommendationId
+                                JOIN songs ON rs.song_id = songs.song_id
+                                JOIN artists ON songs.artist_id = artists.artist_id
+                                WHERE r.friend_id = ?
+                            ''', (user_id,)).fetchall()
+    conn.close()  # Close the database connection
+    # Convert the result to a list of dictionaries and return as JSON
+    return jsonify([dict(song) for song in recommendations])
+
 # Define a route to get songs
 @app.route('/songs', methods=['GET'])
 def get_songs():
