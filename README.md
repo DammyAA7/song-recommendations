@@ -1,6 +1,6 @@
 # Music Catalog API
 
-A simple Flask application with an SQLite database that provides song data and recommendations by artist genre. This project helped me improve my SQL skills and get hands-on experience with a Python framework.
+A simple Flask application with an SQLite database that provides song data, recommendations by artist genre and recomend songs to friends. This project helped me improve my SQL skills and get hands-on experience with a Python framework.
 
 ---
 
@@ -192,6 +192,88 @@ curl http://127.0.0.1:5000/recommend/user/2
 ```text
 Welcome to the Song Recommendation API!
 ```
+
+---
+
+### Recommend a Song to a Friend
+
+* **URL:** `/recommend`
+
+* **Method:** `PUT`
+
+* **Description:** Recommends a song from one user to another. A user cannot recommend the same song more than once to the same friend, nor can they recommend a song to themselves.
+
+* **Request Body:** JSON object containing:
+
+  * `user_id` (integer): ID of the user making the recommendation
+  * `friend_id` (integer): ID of the user receiving the recommendation
+  * `song_id` (integer): ID of the song being recommended
+
+#### Sample Request
+
+```bash
+curl -X PUT http://127.0.0.1:5000/recommend \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": 1, "friend_id": 2, "song_id": 5}'
+```
+
+#### Success Response
+
+* **Status Code:** `201 Created`
+
+```json
+{ "message": "Song successfully recommended!" }
+```
+
+#### Error Responses
+
+* **Missing fields:**
+
+  * **Status Code:** `400 Bad Request`
+
+  ```json
+  { "error": "Missing user_id, friend_id or song_id" }
+  ```
+
+* **Self-recommendation:**
+
+  * **Status Code:** `400 Bad Request`
+
+  ```json
+  { "error": "Cannot recommend a song to yourself" }
+  ```
+
+* **User does not exist:**
+
+  * **Status Code:** `404 Not Found`
+
+  ```json
+  { "error": "Recommending user does not exist" }
+  ```
+
+* **Friend does not exist:**
+
+  * **Status Code:** `404 Not Found`
+
+  ```json
+  { "error": "Friend user does not exist" }
+  ```
+
+* **Song does not exist:**
+
+  * **Status Code:** `404 Not Found`
+
+  ```json
+  { "error": "Song does not exist" }
+  ```
+
+* **Duplicate recommendation:**
+
+  * **Status Code:** `200 OK`
+
+  ```json
+  { "message": "Song has already been recommended to this user" }
+  ```
 
 ---
 
