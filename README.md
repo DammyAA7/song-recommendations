@@ -14,9 +14,11 @@ A simple Flask application with an SQLite database that provides song data and r
 
 ## Technologies
 
+
 - Python 3
 - Flask
 - SQLite
+- NextJs
 
 ---
 
@@ -76,13 +78,15 @@ The project uses an SQLite database named `catalog.db`. A schema script is provi
 
 ---
 
+---
+
 ## API Endpoints
 
 ### Get All Songs
 
-- **URL:** `/songs`
-- **Method:** `GET`
-- **Description:** Returns a JSON list of all songs with their IDs, titles, artist names, release years, and play counts.
+* **URL:** `/songs`
+* **Method:** `GET`
+* **Description:** Returns a JSON list of all songs with their IDs, titles, artist names, release years, and play counts.
 
 #### Sample Request
 
@@ -100,19 +104,21 @@ curl http://127.0.0.1:5000/songs
     "artist": "The Weeknd",
     "year": 2019,
     "play_count": 1500
-  },
-  ...
+  }
 ]
 ```
 
+---
+
 ### Recommend by Artist Genre
 
-- **URL:** `/recommend/artist/<song_id>`
-- **Method:** `GET`
-- **Description:** Returns a JSON list of songs by the same genre as the song with the given `song_id`, excluding itself.
-- **URL Parameters:**
+* **URL:** `/recommend/artist/<song_id>`
+* **Method:** `GET`
+* **Description:** Returns a JSON list of songs in the same genre as the provided `song_id`, excluding that song itself.
 
-  - `song_id`: integer ID of the reference song.
+#### URL Parameters
+
+* `song_id`: Integer — ID of the reference song.
 
 #### Sample Request
 
@@ -136,10 +142,55 @@ curl http://127.0.0.1:5000/recommend/artist/1
 
 #### Error Handling
 
-- If the `song_id` does not exist, the API returns a 404 status and an error message:
-
 ```json
 { "error": "Song not found" }
+```
+
+---
+
+### Get User Recommendations
+
+* **URL:** `/recommend/user/<user_id>`
+* **Method:** `GET`
+* **Description:** Returns songs recommended *to* the user (i.e. `friend_id`) by other users. Includes the recommending user ID, song details, and artist info.
+
+#### URL Parameters
+
+* `user_id`: Integer — ID of the user to whom songs were recommended.
+
+#### Sample Request
+
+```bash
+curl http://127.0.0.1:5000/recommend/user/2
+```
+
+#### Sample Response
+
+```json
+[
+  {
+    "song_id": 3,
+    "title": "Starboy",
+    "artist": "The Weeknd",
+    "year": 2016,
+    "play_count": 1400,
+    "recommended_by": 1
+  }
+]
+```
+
+---
+
+### Welcome Message
+
+* **URL:** `/`
+* **Method:** `GET`
+* **Description:** Returns a simple welcome message to confirm the API is running.
+
+#### Sample Response
+
+```text
+Welcome to the Song Recommendation API!
 ```
 
 ---
