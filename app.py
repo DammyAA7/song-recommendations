@@ -70,6 +70,58 @@ def recommend_artist(song_id):
                                     ''', (genre,song_id)).fetchall()
     conn.close()
     return jsonify([dict(song) for song in recommendations])
+
+@app.route('/recommend', methods=['PUT'])
+def recommend_song():
+    data = request.get_json()
+
+    user_id = data.get('user_id')
+    friend_id = data.get('friend_id')
+    song_id = data.get('song_id')
+
+    if not all([user_id, friend_id, song_id]):
+        return jsonify({'error': 'Missing user_id, friend_id or song_id'}), 400
+    
+    if user_id == friend_id:
+        return jsonify({'error': 'Cannot recommend a song to yourself'}), 400
+
+    conn = get_db_connection()
+
+    # Check if user and friend exist
+    user = conn.execute('SELECT * FROM users WHERE user_id = ?', (user_id,)).fetchone() 
+    friend = conn.execute('SELECT * FROM users WHERE user_id = ?', (friend_id,)).fetchone()
+    song = conn.execute('SELECT * FROM songs WHERE song_id = ?', (song_id,)).fetchone()
+
+    if not user:
+        conn.close()
+        return jsonify({'error': 'Recommending user does not exist'}), 404
+    if not friend:
+        conn.close()
+        return jsonify({'error': 'Friend user does not exist'}), 404
+    if not song:
+        conn.close()
+        return jsonify({'error': 'Song does not exist'}), 404
+
+    # Check if recommendation already exists
+    existing = conn.execute('''
+        SELECT *
+        FROM recommendations r
+        JOIN recommendationSong rs ON r.id = rs.recommendationId
+        WHERE r.user_id = ? AND r.friend_id = ? AND rs.song_id = ?
+    ''', (user_id, friend_id, song_id)).fetchone()
+
+    if existing:
+        conn.close()
+        return jsonify({'message': 'Song has already been recommended to this user'}), 200
+
+    # Insert new recommendation
+    conn.execute('INSERT INTO recommendations (user_id, friend_id) VALUES (?, ?)', (user_id, friend_id))
+    recommendation_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+    conn.execute('INSERT INTO recommendationSong (recommendationId, song_id) VALUES (?, ?)', (recommendation_id, song_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'message': 'Song successfully recommended!'}), 201
     
 if __name__ == '__main__':
     app.run(debug=True)
