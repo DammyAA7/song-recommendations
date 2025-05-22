@@ -1,4 +1,4 @@
-# Music Catalog API
+# Music Recommendation API
 
 A simple Flask application with an SQLite database that provides song data, recommendations by artist genre and recomend songs to friends. This project helped me improve my SQL skills and get hands-on experience with a Python framework.
 
