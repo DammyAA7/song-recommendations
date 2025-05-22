@@ -1,10 +1,14 @@
 CREATE TABLE IF NOT EXISTS users (
     user_id INTEGER PRIMARY KEY AUTOINCREMENT, -- Unique identifier for each user, auto-incremented
-    forename VARCHAR(255) NOT NULL, -- Name of the user, cannot be null
-    username VARCHAR(255) NOT NULL UNIQUE, -- Username of the user, cannot be null and must be unique
-    email VARCHAR(255) NOT NULL UNIQUE, -- Email of the user, cannot be null and must be unique
-    password_hash VARCHAR(255) NOT NULL, -- Hashed password of the user, cannot be null
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP -- Timestamp when the user was created, defaults to current time
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp when the user was created, defaults to current time
+    spotify_user_id VARCHAR(255) NOT NULL UNIQUE, -- Unique identifier for the user in Spotify
+    spotify_display_name VARCHAR(255) NOT NULL, -- Display name of the user in Spotify
+    spotify_email VARCHAR(255) NOT NULL UNIQUE, -- Email of the user in Spotify
+    spotify_avatar_url TEXT, -- Profile URL of the user in Spotify
+    
+    access_token TEXT, -- Access token for Spotify API
+    refresh_token TEXT, -- Refresh token for Spotify API
+    token_expiry TIMESTAMP -- Expiry time for the access token
 );
 
 CREATE TABLE IF NOT EXISTS friends (
@@ -53,13 +57,6 @@ CREATE TABLE IF NOT EXISTS likes (
     PRIMARY KEY (song_id, user_id) -- Composite primary key
 );
 
-INSERT INTO users (forename, username, email, password_hash) VALUES 
-('John', 'john_doe', 'johndoe@email.com', 'hashed_password_1'),
-('Jane', 'jane_doe', 'janedoe@email.com', 'hashed_password_2');
-
-INSERT INTO friends (user_id, friend_id) VALUES 
-(1, 2), -- John is friends with Jane
-(2, 1); -- Jane is friends with John
 INSERT INTO likes (song_id, user_id) VALUES 
 (1, 1), -- John likes song 1
 (11, 1), -- John likes song 11

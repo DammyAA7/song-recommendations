@@ -14,7 +14,6 @@ A simple Flask application with an SQLite database that provides song data, reco
 
 ## Technologies
 
-
 - Python 3
 - Flask
 - SQLite
@@ -60,9 +59,9 @@ The project uses an SQLite database named `catalog.db`. A schema script is provi
 
 **Run the command in your terminal to run the schema.sql file and create the database**
 
-   ```bash
-   sqlite3 catalog.db < /path/to/schema.sql
-   ```
+```bash
+sqlite3 catalog.db < /path/to/schema.sql
+```
 
 ---
 
@@ -84,9 +83,9 @@ The project uses an SQLite database named `catalog.db`. A schema script is provi
 
 ### Get All Songs
 
-* **URL:** `/songs`
-* **Method:** `GET`
-* **Description:** Returns a JSON list of all songs with their IDs, titles, artist names, release years, and play counts.
+- **URL:** `/songs`
+- **Method:** `GET`
+- **Description:** Returns a JSON list of all songs with their IDs, titles, artist names, release years, and play counts.
 
 #### Sample Request
 
@@ -112,13 +111,13 @@ curl http://127.0.0.1:5000/songs
 
 ### Recommend by Artist Genre
 
-* **URL:** `/recommend/artist/<song_id>`
-* **Method:** `GET`
-* **Description:** Returns a JSON list of songs in the same genre as the provided `song_id`, excluding that song itself.
+- **URL:** `/recommend/artist/<song_id>`
+- **Method:** `GET`
+- **Description:** Returns a JSON list of songs in the same genre as the provided `song_id`, excluding that song itself.
 
 #### URL Parameters
 
-* `song_id`: Integer — ID of the reference song.
+- `song_id`: Integer — ID of the reference song.
 
 #### Sample Request
 
@@ -150,13 +149,13 @@ curl http://127.0.0.1:5000/recommend/artist/1
 
 ### Get User Recommendations
 
-* **URL:** `/recommend/user/<user_id>`
-* **Method:** `GET`
-* **Description:** Returns songs recommended *to* the user (i.e. `friend_id`) by other users. Includes the recommending user ID, song details, and artist info.
+- **URL:** `/recommend/user/<user_id>`
+- **Method:** `GET`
+- **Description:** Returns songs recommended _to_ the user (i.e. `friend_id`) by other users. Includes the recommending user ID, song details, and artist info.
 
 #### URL Parameters
 
-* `user_id`: Integer — ID of the user to whom songs were recommended.
+- `user_id`: Integer — ID of the user to whom songs were recommended.
 
 #### Sample Request
 
@@ -183,9 +182,9 @@ curl http://127.0.0.1:5000/recommend/user/2
 
 ### Welcome Message
 
-* **URL:** `/`
-* **Method:** `GET`
-* **Description:** Returns a simple welcome message to confirm the API is running.
+- **URL:** `/`
+- **Method:** `GET`
+- **Description:** Returns a simple welcome message to confirm the API is running.
 
 #### Sample Response
 
@@ -197,17 +196,17 @@ Welcome to the Song Recommendation API!
 
 ### Recommend a Song to a Friend
 
-* **URL:** `/recommend`
+- **URL:** `/recommend`
 
-* **Method:** `PUT`
+- **Method:** `PUT`
 
-* **Description:** Recommends a song from one user to another. A user cannot recommend the same song more than once to the same friend, nor can they recommend a song to themselves.
+- **Description:** Recommends a song from one user to another. A user cannot recommend the same song more than once to the same friend, nor can they recommend a song to themselves.
 
-* **Request Body:** JSON object containing:
+- **Request Body:** JSON object containing:
 
-  * `user_id` (integer): ID of the user making the recommendation
-  * `friend_id` (integer): ID of the user receiving the recommendation
-  * `song_id` (integer): ID of the song being recommended
+  - `user_id` (integer): ID of the user making the recommendation
+  - `friend_id` (integer): ID of the user receiving the recommendation
+  - `song_id` (integer): ID of the song being recommended
 
 #### Sample Request
 
@@ -219,7 +218,7 @@ curl -X PUT http://127.0.0.1:5000/recommend \
 
 #### Success Response
 
-* **Status Code:** `201 Created`
+- **Status Code:** `201 Created`
 
 ```json
 { "message": "Song successfully recommended!" }
@@ -227,49 +226,49 @@ curl -X PUT http://127.0.0.1:5000/recommend \
 
 #### Error Responses
 
-* **Missing fields:**
+- **Missing fields:**
 
-  * **Status Code:** `400 Bad Request`
+  - **Status Code:** `400 Bad Request`
 
   ```json
   { "error": "Missing user_id, friend_id or song_id" }
   ```
 
-* **Self-recommendation:**
+- **Self-recommendation:**
 
-  * **Status Code:** `400 Bad Request`
+  - **Status Code:** `400 Bad Request`
 
   ```json
   { "error": "Cannot recommend a song to yourself" }
   ```
 
-* **User does not exist:**
+- **User does not exist:**
 
-  * **Status Code:** `404 Not Found`
+  - **Status Code:** `404 Not Found`
 
   ```json
   { "error": "Recommending user does not exist" }
   ```
 
-* **Friend does not exist:**
+- **Friend does not exist:**
 
-  * **Status Code:** `404 Not Found`
+  - **Status Code:** `404 Not Found`
 
   ```json
   { "error": "Friend user does not exist" }
   ```
 
-* **Song does not exist:**
+- **Song does not exist:**
 
-  * **Status Code:** `404 Not Found`
+  - **Status Code:** `404 Not Found`
 
   ```json
   { "error": "Song does not exist" }
   ```
 
-* **Duplicate recommendation:**
+- **Duplicate recommendation:**
 
-  * **Status Code:** `200 OK`
+  - **Status Code:** `200 OK`
 
   ```json
   { "message": "Song has already been recommended to this user" }
