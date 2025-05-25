@@ -283,40 +283,49 @@ def index():
 
     
 # Define a route to get user recommendations
-@app.route('/recommend/user/<int:user_id>', methods=['GET'])
+@app.route('/recommendations', methods=['GET'])
 def get_user_recommendations():
     access_token = session.get('access_token')
-    user_id      = session.get('user_id')
+    #user_id      = session.get('user_id')
+    user_id = "0stwt8dz3gqug7j3zdvnoe26s"  # For testing purposes, hardcoded user_id
     if not access_token or not user_id:
         return jsonify({'error': 'not_authenticated'}), 401
-    
+
     conn = get_db_connection()  # Establish a database connection
     # Execute a SQL query to retrieve song details for the given user_id
     recommendations = conn.execute('''
-                                SELECT songs.song_id, songs.title, artists.name AS artist, songs.year, songs.play_count, r.user_id AS recommended_by
+                                SELECT rs.song_id, r.user_id As recommended_by
                                 FROM recommendations r
-                                JOIN recommendationSongs rs ON r.id = rs.recommendation_id
-                                JOIN songs ON rs.song_id = songs.song_id
-                                JOIN artists ON songs.artist_id = artists.artist_id
+                                JOIN recommendationSongs rs 
+                                   ON r.id = rs.recommendation_id
                                 WHERE r.friend_id = ?
+                                   ORDER BY r.created_at DESC
                             ''', (user_id,)).fetchall()
     conn.close()  # Close the database connection
     # Convert the result to a list of dictionaries and return as JSON
-    return jsonify([dict(song) for song in recommendations])
+    tracks = []
 
-# Define a route to get songs
-@app.route('/songs', methods=['GET'])
-def get_songs():
-    conn = get_db_connection()  # Establish a database connection
-    # Execute a SQL query to retrieve song details along with artist names
-    songs = conn.execute('''
-                         SELECT songs.song_id, songs.title, artists.name AS artist, songs.year, songs.play_count 
-                         FROM songs
-                         JOIN artists ON songs.artist_id = artists.artist_id
-                         ''').fetchall()
-    conn.close()  # Close the database connection
-    # Convert the result to a list of dictionaries and return as JSON
-    return jsonify([dict(song) for song in songs])
+    for row in recommendations:
+        song_id = row['song_id'] 
+        rec_by = row['recommended_by']
+
+        song_resp = requests.get(
+            'https://api.spotify.com/v1/tracks/' + song_id,
+            headers={'Authorization': f'Bearer {access_token}'}
+        )
+        if song_resp.status_code == 200:
+            song = song_resp.json()
+            tracks.append({
+                'song_id': song['id'],
+                'title': song['name'],
+                'artist': ', '.join(artist['name'] for artist in song['artists']),
+                'album': song['album']['name'],
+                'year': song['album']['release_date'][:4],
+                'recommended_by': rec_by
+            })
+        else:
+            tracks.append({'error': 'spotify_api_error', 'details': song_resp.json()})
+    return jsonify(tracks)
 
 
 @app.route('/recommend', methods=['POST'])
