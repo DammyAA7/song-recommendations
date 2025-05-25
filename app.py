@@ -236,6 +236,10 @@ def add_friend():
     conn.execute("""
     INSERT INTO friends (user_id, friend_id) VALUES (?, ?)
                  """, (user_id, friend_id))
+    
+    conn.execute("""
+    INSERT INTO friends (user_id, friend_id) VALUES (?, ?)
+                 """, (friend_id, user_id))
     conn.commit()
     conn.close()
 
@@ -255,46 +259,29 @@ def add_friend():
 
 
 
-@app.route('/friends', methods=['GET'])
-def get_friends():
-    # 1) Auth
-    token = session.get('access_token')
-    if not token:
+@app.route('/list_friends', methods=['GET'])
+def list_friends():
+    access_token = session.get('access_token')
+    user_id = session.get('user_id')
+    if not access_token:
         return jsonify({'error': 'not_authenticated'}), 401
-
-    # 2) Read the Spotify IDs to check
-    ids_param = request.args.get('ids', '')
-    spotify_ids = [i.strip() for i in ids_param.split(',') if i.strip()]
-    if not spotify_ids:
-        return jsonify({'error': 'no_ids_provided'}), 400
-    if len(spotify_ids) > 50:
-        return jsonify({'error': 'max_50_ids_allowed'}), 400
-
-    headers = {'Authorization': f'Bearer {token}'}
-
-    # 3) Check who we follow
-    resp = requests.get(
-        'https://api.spotify.com/v1/me/following/contains',
-        headers=headers,
-        params={'type': 'user', 'ids': ','.join(spotify_ids)}
-    )
-    resp.raise_for_status()
-    follows = resp.json()  # e.g. [false, true, true, false]
-
-    # 4) For each followed user, fetch full profile
-    friends = []
-    for sp_id, is_followed in zip(spotify_ids, follows):
-        if not is_followed:
-            continue
-        profile_resp = requests.get(
-            f'https://api.spotify.com/v1/users/{sp_id}',
-            headers=headers
-        )
-        profile_resp.raise_for_status()
-        friends.append(profile_resp.json())
-
-    # 5) Return the raw Spotify JSON profiles
-    return jsonify(friends)
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 401
+    conn = get_db_connection()
+    # Retrieve friends from the database
+    friends = conn.execute('''
+                        SELECT u.spotify_user_id, u.spotify_display_name, u.spotify_avatar_url
+                        FROM friends f
+                        JOIN users u ON f.friend_id = u.spotify_user_id
+                        WHERE f.user_id = ?
+                        ''', (user_id,)).fetchall()
+    conn.close()
+    # Convert the result to a list of dictionaries and return as JSON
+    return jsonify([{
+        'spotify_user_id': friend['spotify_user_id'],
+        'display_name': friend['spotify_display_name'],
+        'avatar_url': friend['spotify_avatar_url']
+    } for friend in friends])
 
 @app.route('/')
 def index():
