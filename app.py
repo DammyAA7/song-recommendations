@@ -27,9 +27,11 @@ def login():
         "response_type": "code",
         "redirect_uri": os.getenv("SPOTIFY_REDIRECT_URI"),
         "scope": scope,
-        "state": state
+        "state": state,
+        "show_dialog":  "true"
     }
     auth_url = "https://accounts.spotify.com/authorize?" + urlencode(params)
+    print(auth_url)
     return redirect(auth_url)
 
 @app.route('/callback')
@@ -138,7 +140,7 @@ def get_following_artists():
 
     # Build query parameters. Spotify supports only 'artist' for this endpoint.
     params = {
-        'type': '',
+        'type': 'artist',
         'limit': 50
     }
     # optional cursor-based pagination
@@ -161,12 +163,15 @@ def get_following_artists():
 
 @app.route('/add_friend', methods=['POST'])
 def add_friend():
+
     access_token = session.get('access_token')
     user_id = session.get('user_id')
     if not access_token:
         return jsonify({'error': 'not_authenticated'}), 401
-    user_id = session.get('user_id')
-
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 401
+   
+    # Check if the request contains a friend_id
     friend_id = request.json.get('friend_id')
     if not friend_id:
         return jsonify({'error': 'friend_id_required'}), 400
@@ -175,6 +180,7 @@ def add_friend():
 
     # Check if user follows the friend
     # Spotify API does not support API for listing friends friends, but we can check if the user follows them
+    # In reality, this is a workaround to simulate "friends" by checking if the user follows another user
     params = {'type': 'user','ids': friend_id}
     resp = requests.get(
         'https://api.spotify.com/v1/me/following/contains?',
@@ -187,7 +193,63 @@ def add_friend():
     follows = resp.json()
     if not follows[0]:
         return jsonify({'error': 'not_following_friend'}), 400
-    return jsonify({'message': 'friend_added'}), 200
+    
+    # If the user follows the friend, we can add them to our friends list
+    # If user does not exist in the database, we create a new entry
+    profile_resp = requests.get(
+        'https://api.spotify.com/v1/users/' + friend_id,
+        headers={'Authorization': f'Bearer {access_token}'}
+    )
+    # Check if the profile request was successful
+    profile = profile_resp.json()
+    if profile_resp.status_code != 200:
+        return jsonify({'error': 'spotify_api_error', 'details': profile}), profile_resp.status_code
+    
+    conn = get_db_connection()
+    # Check if user is already a friend
+    if conn.execute("""
+                    SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ?
+                    """,
+                    (user_id, friend_id)).fetchone() or conn.execute("""
+                    SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ?
+                    """,
+                    (friend_id, user_id)).fetchone():
+        conn.close()
+        return jsonify({'error': 'friend_already_exists'}), 400
+    
+    # Insert or update the user in the database
+    conn.execute("""
+    INSERT INTO users (
+                spotify_user_id,
+        spotify_display_name,
+        spotify_avatar_url
+                 ) VALUES (?, ?, ?) ON CONFLICT(spotify_user_id) DO UPDATE SET
+        spotify_display_name = excluded.spotify_display_name,
+        spotify_avatar_url   = excluded.spotify_avatar_url
+    """, (
+        profile['id'],
+        profile.get('display_name'),
+        (profile.get('images') or [{}])[0].get('url')
+    ))
+
+    # Create a new entry in the friends table
+    conn.execute("""
+    INSERT INTO friends (user_id, friend_id) VALUES (?, ?)
+                 """, (user_id, friend_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        'message': 'friend_added',
+        'friend': {
+            'user_id': user_id,
+            'spotify_user_id': profile['id'],
+            'display_name': profile.get('display_name'),
+            'avatar_url': (profile.get('images') or [{}])[0].get('url')
+            }
+    }), 200
+
+
 
 
 

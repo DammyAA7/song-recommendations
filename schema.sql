@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp when the user was created, defaults to current time
     spotify_user_id VARCHAR(255) NOT NULL UNIQUE, -- Unique identifier for the user in Spotify
     spotify_display_name VARCHAR(255) NOT NULL, -- Display name of the user in Spotify
-    spotify_email VARCHAR(255) NOT NULL UNIQUE, -- Email of the user in Spotify
+    spotify_email VARCHAR(255) UNIQUE, -- Email of the user in Spotify
     spotify_avatar_url TEXT, -- Profile URL of the user in Spotify
     
     access_token TEXT, -- Access token for Spotify API
