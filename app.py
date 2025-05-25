@@ -251,13 +251,7 @@ def add_friend():
             'display_name': profile.get('display_name'),
             'avatar_url': (profile.get('images') or [{}])[0].get('url')
             }
-    }), 200
-
-
-
-
-
-
+    }), 201
 
 @app.route('/list_friends', methods=['GET'])
 def list_friends():
@@ -288,16 +282,20 @@ def index():
     return 'Welcome to the Song Recommendation API!'
 
     
-
 # Define a route to get user recommendations
 @app.route('/recommend/user/<int:user_id>', methods=['GET'])
-def get_user_recommendations(user_id):
+def get_user_recommendations():
+    access_token = session.get('access_token')
+    user_id      = session.get('user_id')
+    if not access_token or not user_id:
+        return jsonify({'error': 'not_authenticated'}), 401
+    
     conn = get_db_connection()  # Establish a database connection
     # Execute a SQL query to retrieve song details for the given user_id
     recommendations = conn.execute('''
                                 SELECT songs.song_id, songs.title, artists.name AS artist, songs.year, songs.play_count, r.user_id AS recommended_by
                                 FROM recommendations r
-                                JOIN recommendationSong rs ON r.id = rs.recommendationId
+                                JOIN recommendationSongs rs ON r.id = rs.recommendation_id
                                 JOIN songs ON rs.song_id = songs.song_id
                                 JOIN artists ON songs.artist_id = artists.artist_id
                                 WHERE r.friend_id = ?
@@ -320,67 +318,50 @@ def get_songs():
     # Convert the result to a list of dictionaries and return as JSON
     return jsonify([dict(song) for song in songs])
 
-@app.route('/recommend/artist/<int:song_id>', methods=['GET'])
-def recommend_artist(song_id):
-    conn = get_db_connection()  # Establish a database connection
-    # Execute a SQL query to retrieve the artist_id of the song with the given song_id
-    song = conn.execute('''
-                        SELECT artists.genre
-                        FROM songs
-                        JOIN artists ON songs.artist_id = artists.artist_id
-                        WHERE songs.song_id = ?
-                        ''', (song_id,)).fetchone()
-    if song is None:
-        return jsonify({'error': 'Song not found'}), 404
-    
-    # Execute a SQL query to retrieve the song details of songs by the same genre 
-    genre = song['genre']
 
-    recommendations = conn.execute('''
-                                    SELECT songs.song_id, songs.title, artists.name as artist, songs.play_count, artists.genre
-                                    FROM songs
-                                    JOIN artists ON songs.artist_id = artists.artist_id
-                                    WHERE artists.genre = ? AND songs.song_id != ?
-                                    ''', (genre,song_id)).fetchall()
-    conn.close()
-    return jsonify([dict(song) for song in recommendations])
-
-@app.route('/recommend', methods=['PUT'])
+@app.route('/recommend', methods=['POST'])
 def recommend_song():
-    data = request.get_json()
-
-    user_id = data.get('user_id')
-    friend_id = data.get('friend_id')
-    song_id = data.get('song_id')
-
-    if not all([user_id, friend_id, song_id]):
-        return jsonify({'error': 'Missing user_id, friend_id or song_id'}), 400
+    access_token = session.get('access_token')
+    user_id = session.get('user_id')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 401
     
+    # Check if the request contains a friend_id
+    friend_id = request.json.get('friend_id')
+    if not friend_id:
+        return jsonify({'error': 'friend_id_required'}), 400
     if user_id == friend_id:
-        return jsonify({'error': 'Cannot recommend a song to yourself'}), 400
-
+        return jsonify({'error': 'cannot_recommend_to_yourself'}), 400
+    
     conn = get_db_connection()
 
-    # Check if user and friend exist
-    user = conn.execute('SELECT * FROM users WHERE user_id = ?', (user_id,)).fetchone() 
-    friend = conn.execute('SELECT * FROM users WHERE user_id = ?', (friend_id,)).fetchone()
-    song = conn.execute('SELECT * FROM songs WHERE song_id = ?', (song_id,)).fetchone()
-
-    if not user:
+    # Check if user is friends with the friend_id
+    if not conn.execute("""
+                    SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ?
+                    """,
+                    (user_id, friend_id)).fetchone() and not conn.execute("""
+                    SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ?
+                    """,
+                    (friend_id, user_id)).fetchone():
         conn.close()
-        return jsonify({'error': 'Recommending user does not exist'}), 404
-    if not friend:
-        conn.close()
-        return jsonify({'error': 'Friend user does not exist'}), 404
-    if not song:
-        conn.close()
-        return jsonify({'error': 'Song does not exist'}), 404
+        return jsonify({'error': 'Not_Friends_with_user'}), 400
+    
+    song_id = request.json.get('song_id')
+    song_resp = requests.get(
+        'https://api.spotify.com/v1/tracks/' + song_id,
+        headers={'Authorization': f'Bearer {access_token}'}
+    )
+    song = song_resp.json()
+    if song_resp.status_code != 200:
+        return jsonify({'error': 'spotify_api_error', 'details': song}), song_resp.status_code
 
     # Check if recommendation already exists
     existing = conn.execute('''
         SELECT *
         FROM recommendations r
-        JOIN recommendationSong rs ON r.id = rs.recommendationId
+        JOIN recommendationSongs rs ON r.id = rs.recommendation_id
         WHERE r.user_id = ? AND r.friend_id = ? AND rs.song_id = ?
     ''', (user_id, friend_id, song_id)).fetchone()
 
@@ -391,11 +372,22 @@ def recommend_song():
     # Insert new recommendation
     conn.execute('INSERT INTO recommendations (user_id, friend_id) VALUES (?, ?)', (user_id, friend_id))
     recommendation_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
-    conn.execute('INSERT INTO recommendationSong (recommendationId, song_id) VALUES (?, ?)', (recommendation_id, song_id))
+    conn.execute('INSERT INTO recommendationSongs (recommendation_id, song_id) VALUES (?, ?)', (recommendation_id, song_id))
     conn.commit()
     conn.close()
 
-    return jsonify({'message': 'Song successfully recommended!'}), 201
+    return jsonify({
+        'message': 'Song successfully recommended!',
+        'Song Details': {
+            'song_id': song['id'],
+            'title': song['name'],
+            'artist': ', '.join(artist['name'] for artist in song['artists']),
+            'album': song['album']['name'],
+            'year': song['album']['release_date'][:4]
+        },
+        'recommended_by': user_id,
+        'recommended_to': friend_id
+        }), 201
     
 if __name__ == '__main__':
     app.run(debug=True)
