@@ -45,3 +45,14 @@ CREATE TABLE IF NOT EXISTS likes (
     user_id INT NOT NULL, -- Identifier for the user, cannot be null
     PRIMARY KEY (song_id, user_id) -- Composite primary key
 );
+
+-- Create table for storing OAuth states
+CREATE TABLE IF NOT EXISTS oauth_states (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    state TEXT UNIQUE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_oauth_states_state ON oauth_states(state);
+CREATE INDEX IF NOT EXISTS idx_oauth_states_created_at ON oauth_states(created_at);

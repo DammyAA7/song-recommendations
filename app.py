@@ -10,11 +10,7 @@ from functools import wraps
 # Initialize the Flask application
 app = Flask(__name__)
 CORS(app, origins=["https://open.spotify.com", "http://127.0.0.1:3000"], supports_credentials=True)  # Enable CORS for all routes
-# CRITICAL: Proper session configuration
-app.secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-key")
-app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Important for cross-origin requests
+app.secret_key = os.getenv("SESSION_SECRET_KEY")
 
 # Function to establish a connection to the SQLite database
 def get_db_connection():
@@ -82,14 +78,27 @@ def ensure_token(f):
 # Define a route for the root URL
 @app.route('/login')
 def login():
-    state = secrets.token_urlsafe(16) # Generate a random state parameter
-    session['oauth_state'] = state # Store the state before redirecting to the OAuth provider
-    session.permanent = True  # Make the session permanent, so it lasts until the browser is closed
-
-    print(f"Generated state: {state}")  # Debug log
-    print(f"Session ID: {session.get('oauth_state')}")  # Debug log
+    # Generate new state and store it in database instead of session
+    state = secrets.token_urlsafe(16)
     
+    # Store state in database with expiration
+    conn = get_db_connection()
+    # Clean up expired states first
+    conn.execute("""
+        DELETE FROM oauth_states 
+        WHERE created_at < datetime('now', '-5 minutes')
+    """)
+    
+    # Insert new state
+    conn.execute("""
+        INSERT INTO oauth_states (state, created_at) 
+        VALUES (?, datetime('now'))
+    """, (state,))
+    conn.commit()
+    conn.close()
 
+    print(f"Generated and stored state in DB: {state}")
+    
     scope = "user-follow-read user-read-email"
     params = {
         "client_id": os.getenv("SPOTIFY_CLIENT_ID"),
@@ -97,17 +106,19 @@ def login():
         "redirect_uri": os.getenv("SPOTIFY_REDIRECT_URI"),
         "scope": scope,
         "state": state,
-        "show_dialog":  "true"
+        "show_dialog": "true"
     }
     auth_url = "https://accounts.spotify.com/authorize?" + urlencode(params)
-    print(auth_url)
-    #return redirect(auth_url)  --> Automatically redirect the user to the Spotify authorization URL
+    print(f"Auth URL: {auth_url}")
+    
     return jsonify({
-            'status': 'success',
-            'auth_url': auth_url,
-            'message': 'Authorization URL generated',
-            'state': state
-        }), 200
+        'status': 'success',
+        'auth_url': auth_url,
+        'message': 'Authorization URL generated',
+        'state': state
+    }), 200
+
+    
 
 @app.route('/check_auth')
 def check_auth():
@@ -118,6 +129,7 @@ def check_auth():
             if session.get('expires_at', 0) <= time.time():
                 # Token expired, clear session
                 session.clear()
+                print({'authenticated': False, 'reason': 'token_expired'})
                 return jsonify({'authenticated': False, 'reason': 'token_expired'}), 401
             
             return jsonify({
@@ -126,6 +138,7 @@ def check_auth():
                 'expires_at': session.get('expires_at')
             }), 200
         else:
+            print({'authenticated': False, 'reason': 'no_token'})
             return jsonify({'authenticated': False, 'reason': 'no_token'}), 401
             
     except Exception as e:
@@ -134,29 +147,49 @@ def check_auth():
 
 @app.route('/callback')
 def callback():
-    code  = request.args.get('code')  # Get the authorization code from the query parameters
+    code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
 
     print(f"Callback received - Code: {'Present' if code else 'Missing'}")
     print(f"State from callback: {state}")
-    print(f"State from session: {session.get('oauth_state')}")
-    print(f"Session contents: {dict(session)}")
+    
     if error:
         return jsonify({'error': f'Authorization failed: {error}'}), 400
     if not code:
         return jsonify({'error': 'Authorization code not found'}), 400
+    if not state:
+        return jsonify({'error': 'State parameter missing'}), 400
     
-    stored_state = session.get('oauth_state')
-    if not stored_state:
-        return jsonify({'error': 'No state found in session'}), 400
-    # Check if the state matches the one stored in the session
-    if state != stored_state:
-            return jsonify({
-                'error': 'State mismatch',
-                'received_state': state,
-                'expected_state': stored_state
-            }), 400
+    # Check state against database instead of session
+    conn = get_db_connection()
+    
+    # Clean up expired states
+    conn.execute("""
+        DELETE FROM oauth_states 
+        WHERE created_at < datetime('now', '-10 minutes')
+    """)
+    
+    # Check if state exists and is valid
+    stored_state_row = conn.execute("""
+        SELECT state FROM oauth_states 
+        WHERE state = ? AND created_at > datetime('now', '-10 minutes')
+    """, (state,)).fetchone()
+    
+    if not stored_state_row:
+        conn.close()
+        return jsonify({
+            'error': 'Invalid or expired state',
+            'received_state': state,
+            'message': 'State not found in database or has expired'
+        }), 400
+    
+    # State is valid, remove it from database (single use)
+    conn.execute("DELETE FROM oauth_states WHERE state = ?", (state,))
+    conn.commit()
+    conn.close()
+    
+    print(f"State validated successfully: {state}")
     
     token_data = {
         "grant_type": "authorization_code",
@@ -169,20 +202,30 @@ def callback():
         os.getenv("SPOTIFY_CLIENT_SECRET")
     )
 
-    resp = requests.post(
-        "https://accounts.spotify.com/api/token",
-        data=token_data,
-        auth=auth_header
-    )
-
-    resp.raise_for_status()  # Raise an error for bad responses
-    tokens = resp.json()  # Parse the JSON response
-    session['access_token'] = tokens['access_token']  # Store the access token in the session
-    session['refresh_token'] = tokens['refresh_token']
-    session['expires_in'] = tokens['expires_in']
-    session['expires_at'] = time.time() + tokens['expires_in']  # Store the expiration time of the access token
-    
-    session.pop('oauth_state', None)  # Clear the state from the session after successful authentication
+    try:
+        resp = requests.post(
+            "https://accounts.spotify.com/api/token",
+            data=token_data,
+            auth=auth_header
+        )
+        resp.raise_for_status()
+        tokens = resp.json()
+        
+        # Store tokens in session
+        session['access_token'] = tokens['access_token']
+        session['refresh_token'] = tokens['refresh_token']
+        session['expires_in'] = tokens['expires_in']
+        session['expires_at'] = time.time() + tokens['expires_in']
+        
+        # Clear any oauth state from session after successful authentication
+        session.pop('oauth_state', None)
+        session.pop('state_created_at', None)
+        
+        print("Authentication successful, tokens stored in session")
+        
+    except requests.RequestException as e:
+        print(f"Token exchange failed: {e}")
+        return jsonify({'error': 'Failed to exchange code for tokens'}), 400
 
     return '''
         <html>
@@ -263,15 +306,23 @@ def logout():
         conn.execute("""
             UPDATE users
             SET
-                access_token      = NULL,
-                refresh_token     = NULL,
-                token_expiry  = NULL
+                access_token = NULL,
+                refresh_token = NULL,
+                token_expiry = NULL
             WHERE spotify_user_id = ?
         """, (user_id,))
         conn.commit()
         conn.close()
+    
+    # Clear session but preserve the session object itself
     session.clear()
+    
+    # Ensure session is properly configured for future use
+    session.permanent = True
+    
+    print("Session cleared successfully")
     return jsonify({'message': 'Logged out successfully', 'user_id': user_id}), 200
+
 
 @app.route('/following', methods=['GET'])
 @ensure_token  # Ensure the access token is valid before proceeding
@@ -546,17 +597,12 @@ def recommend_song():
 @app.route('/debug_session')
 def debug_session():
     return jsonify({
-      'oauth_state_in_session': session.get('oauth_state'),
-      'state_in_query': request.args.get('state')
+        'oauth_state_in_session': session.get('oauth_state'),
+        'state_created_at': session.get('state_created_at'),
+        'has_access_token': 'access_token' in session,
+        'session_keys': list(session.keys()),
+        'session_permanent': session.permanent
     })
-
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', 'https://open.spotify.com')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
     
 if __name__ == '__main__':
     app.run(debug=True)

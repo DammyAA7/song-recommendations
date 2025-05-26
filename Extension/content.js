@@ -130,6 +130,144 @@ function closePopup() {
   }
 }
 
+async function handleAuthFlow() {
+    const authBtn = document.querySelector('#authorize-btn');
+    if (!authBtn) return;
+    
+    authBtn.innerHTML = '⏳ Connecting...';
+    authBtn.disabled = true;
+
+    try {
+        // First, let's check if we have any existing session
+        console.log('Checking existing session...');
+        
+        const response = await fetch('http://127.0.0.1:5000/login', {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Login response:', data);
+            
+            if (data.auth_url) {
+                // Open popup for authorization
+                const authWindow = window.open(
+                    data.auth_url,
+                    'spotify-auth',
+                    'width=500,height=600,resizable=yes,scrollbars=yes'
+                );
+
+                // Handle the auth flow
+                await handleAuthWindow(authWindow);
+            } else {
+                throw new Error('No auth URL received');
+            }
+        } else {
+            const errorData = await response.json();
+            console.error('Login API error:', errorData);
+            throw new Error(`Login failed: ${errorData.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Auth flow error:', error);
+        authBtn.innerHTML = 'Try Again';
+        authBtn.disabled = false;
+        
+        // Show error to user
+        showAuthError(error.message);
+    }
+}
+
+async function handleAuthWindow(authWindow) {
+    return new Promise((resolve, reject) => {
+        let resolved = false;
+        
+        // Set timeout for the entire auth process
+        const timeout = setTimeout(() => {
+            if (!resolved) {
+                resolved = true;
+                if (!authWindow.closed) {
+                    authWindow.close();
+                }
+                reject(new Error('Authentication timeout'));
+            }
+        }, 60000); // 1 minute timeout
+
+        // Check if popup was closed manually
+        const authCheckInterval = setInterval(() => {
+            try {
+                if (authWindow.closed && !resolved) {
+                    resolved = true;
+                    clearInterval(authCheckInterval);
+                    clearTimeout(timeout);
+                    
+                    // Check if auth was successful
+                    setTimeout(() => {
+                        checkAuthStatus().then(success => {
+                            if (success) {
+                                resolve();
+                            } else {
+                                reject(new Error('Authentication was cancelled or failed'));
+                            }
+                        });
+                    }, 500); // Small delay to allow session to update
+                }
+            } catch (e) {
+                // Ignore cross-origin errors
+            }
+        }, 1000);
+
+        // Listen for postMessage from callback
+        
+        const messageHandler = (event) => {
+            console.log('Event data:', event.data);
+            if (event.data === 'auth_success' && !resolved) {
+                console.log('Authentication successful');
+                resolved = true;
+                clearInterval(authCheckInterval);
+                clearTimeout(timeout);
+                window.removeEventListener('message', messageHandler);
+                
+                if (!authWindow.closed) {
+                    authWindow.close();
+                }
+                
+                // Small delay to ensure session is updated
+                setTimeout(() => {
+                    resolve();
+                }, 500);
+            }
+        };
+        
+        window.addEventListener('message', messageHandler);
+    });
+}
+
+function showAuthError(message) {
+    const popup = document.getElementById('spotify-recommend-popup');
+    if (!popup) return;
+    
+    const content = popup.querySelector('.popup-content');
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'auth-error';
+    errorDiv.innerHTML = `
+        <div style="background: #ff4444; color: white; padding: 10px; border-radius: 4px; margin: 10px 0;">
+            <strong>Authentication Error:</strong> ${message}
+        </div>
+    `;
+    
+    // Remove any existing error messages
+    const existingError = content.querySelector('.auth-error');
+    if (existingError) {
+        existingError.remove();
+    }
+    
+    content.insertBefore(errorDiv, content.firstChild);
+}
+
 function showPopupFriends() {
     const popup = createBasePopup();
     const content = popup.querySelector('.popup-content');
@@ -223,77 +361,28 @@ function showPopupAuth() {
         </svg>
         Authorize with Spotify
       </button>
+      <div class="debug-info" style="margin-top: 15px; padding: 10px; background: #f0f0f0; border-radius: 4px; font-size: 12px;">
+        <button id="debug-session-btn" style="padding: 5px 10px; font-size: 11px;">Check Session Debug</button>
+      </div>
     </div>
   `;
 
     // Add click handler for auth button
     const authBtn = content.querySelector('#authorize-btn');
-    authBtn.addEventListener('click', async () => {
-        authBtn.innerHTML = '⏳ Connecting...';
-        authBtn.disabled = true;
-
+    authBtn.addEventListener('click', handleAuthFlow);
+    
+    // Add debug button handler
+    const debugBtn = content.querySelector('#debug-session-btn');
+    debugBtn.addEventListener('click', async () => {
         try {
-            const response = await fetch('http://127.0.0.1:5000/login', {
-                method: 'GET',
-                credentials: 'include', // Important for session cookies
-                headers: {
-                    'Content-Type': 'application/json',
-                }
+            const response = await fetch('http://127.0.0.1:5000/debug_session', {
+                credentials: 'include'
             });
-            if (response.ok) {
-                const data = await response.json();
-                if (data.auth_url) {
-                    console.log('Opening auth URL:', data.auth_url);
-                    
-                    // Open in a new popup window instead of iframe
-                    const authWindow = window.open(
-                        data.auth_url,
-                        'spotify-auth',
-                        'width=500,height=600,resizable=yes,scrollbars=yes'
-                    );
-
-                    // Listen for auth completion
-                    const authCheckInterval = setInterval(() => {
-                        try {
-                            // Check if popup was closed
-                            if (authWindow.closed) {
-                                clearInterval(authCheckInterval);
-                                // Check if auth was successful
-                                checkAuthStatus();
-                            }
-                        } catch (e) {
-                            // Popup might be on different domain, ignore cross-origin errors
-                        }
-                    }, 1000);
-
-                    // Also listen for postMessage
-                    const messageHandler = (event) => {
-                        if (event.data === 'auth_success') {
-                            clearInterval(authCheckInterval);
-                            window.removeEventListener('message', messageHandler);
-                            authWindow.close();
-                            checkAuthStatus();
-                        }
-                    };
-                    window.addEventListener('message', messageHandler);
-
-                    // Fallback: check auth status after some time
-                    setTimeout(() => {
-                        clearInterval(authCheckInterval);
-                        window.removeEventListener('message', messageHandler);
-                        if (!authWindow.closed) {
-                            authWindow.close();
-                        }
-                        checkAuthStatus();
-                    }, 60000); // 1 minute timeout
-                }
-            } else {
-                throw new Error('Failed to get auth URL');
-            }
+            const data = await response.json();
+            console.log('Session Debug:', data);
+            alert(`Session Debug:\n${JSON.stringify(data, null, 2)}`);
         } catch (error) {
-            console.error('Auth error:', error);
-            authBtn.innerHTML = 'Try Again';
-            authBtn.disabled = false;
+            console.error('Debug error:', error);
         }
     });
 
@@ -302,18 +391,28 @@ function showPopupAuth() {
 
 async function checkAuthStatus() {
     try {
+        console.log('Checking auth status...');
         const response = await fetch('http://127.0.0.1:5000/check_auth', {
             method: 'GET',
             credentials: 'include'
         });
         
+        console.log('Auth check response status:', response.status);
+        
         if (response.ok) {
             const data = await response.json();
+            console.log('Auth check data:', data);
+            
             if (data.authenticated) {
+                console.log('User is authenticated');
                 closePopup();
                 setTimeout(() => showPopupFriends(), 300);
                 return true;
+            } else {
+                console.log('User is not authenticated:', data.reason);
             }
+        } else {
+            console.log('Auth check failed with status:', response.status);
         }
     } catch (error) {
         console.error('Auth check error:', error);
