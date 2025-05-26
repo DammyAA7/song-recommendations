@@ -9,8 +9,12 @@ from functools import wraps
 
 # Initialize the Flask application
 app = Flask(__name__)
-CORS(app, supports_credentials=True)  # Enable CORS for all routes
-app.secret_key = os.getenv("SESSION_SECRET_KEY")
+CORS(app, origins=["https://open.spotify.com", "http://127.0.0.1:3000"], supports_credentials=True)  # Enable CORS for all routes
+# CRITICAL: Proper session configuration
+app.secret_key = os.getenv("SESSION_SECRET_KEY", "fallback-secret-key")
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Important for cross-origin requests
 
 # Function to establish a connection to the SQLite database
 def get_db_connection():
@@ -80,6 +84,12 @@ def ensure_token(f):
 def login():
     state = secrets.token_urlsafe(16) # Generate a random state parameter
     session['oauth_state'] = state # Store the state before redirecting to the OAuth provider
+    session.permanent = True  # Make the session permanent, so it lasts until the browser is closed
+
+    print(f"Generated state: {state}")  # Debug log
+    print(f"Session ID: {session.get('oauth_state')}")  # Debug log
+    
+
     scope = "user-follow-read user-read-email"
     params = {
         "client_id": os.getenv("SPOTIFY_CLIENT_ID"),
@@ -101,20 +111,52 @@ def login():
 
 @app.route('/check_auth')
 def check_auth():
-    # Check if the user is authenticated by checking if the access token is in the session
-    if 'access_token' in session:
-        return jsonify({'authenticated': True, 'user_id': session.get('user_id')}), 200
-    else:
-        return jsonify({'authenticated': False}), 401
+    print(f"Checking auth - Session contents: {dict(session)}")  # Debug log
+    try:
+        if 'access_token' in session:
+            # Check if token is expired
+            if session.get('expires_at', 0) <= time.time():
+                # Token expired, clear session
+                session.clear()
+                return jsonify({'authenticated': False, 'reason': 'token_expired'}), 401
+            
+            return jsonify({
+                'authenticated': True, 
+                'user_id': session.get('user_id'),
+                'expires_at': session.get('expires_at')
+            }), 200
+        else:
+            return jsonify({'authenticated': False, 'reason': 'no_token'}), 401
+            
+    except Exception as e:
+        print(f"Check auth error: {e}")
+        return jsonify({'authenticated': False, 'error': str(e)}), 500
 
 @app.route('/callback')
 def callback():
     code  = request.args.get('code')  # Get the authorization code from the query parameters
+    state = request.args.get('state')
+    error = request.args.get('error')
+
+    print(f"Callback received - Code: {'Present' if code else 'Missing'}")
+    print(f"State from callback: {state}")
+    print(f"State from session: {session.get('oauth_state')}")
+    print(f"Session contents: {dict(session)}")
+    if error:
+        return jsonify({'error': f'Authorization failed: {error}'}), 400
     if not code:
         return jsonify({'error': 'Authorization code not found'}), 400
-    # Check if the state parameter matches the one stored in the session
-    if request.args.get('state') != session.get('oauth_state'):
-        return jsonify({'error': 'State mismatch'}), 400
+    
+    stored_state = session.get('oauth_state')
+    if not stored_state:
+        return jsonify({'error': 'No state found in session'}), 400
+    # Check if the state matches the one stored in the session
+    if state != stored_state:
+            return jsonify({
+                'error': 'State mismatch',
+                'received_state': state,
+                'expected_state': stored_state
+            }), 400
     
     token_data = {
         "grant_type": "authorization_code",
@@ -139,7 +181,29 @@ def callback():
     session['refresh_token'] = tokens['refresh_token']
     session['expires_in'] = tokens['expires_in']
     session['expires_at'] = time.time() + tokens['expires_in']  # Store the expiration time of the access token
-    return redirect("http://127.0.0.1:5000/me")
+    
+    session.pop('oauth_state', None)  # Clear the state from the session after successful authentication
+
+    return '''
+        <html>
+        <head><title>Authentication Successful</title></head>
+        <body>
+            <script>
+                // Try to close popup/iframe or redirect parent
+                if (window.opener) {
+                    window.opener.postMessage('auth_success', '*');
+                    window.close();
+                } else if (window.parent !== window) {
+                    window.parent.postMessage('auth_success', '*');
+                } else {
+                    document.body.innerHTML = '<h2>Authentication successful! You can close this tab.</h2>';
+                }
+            </script>
+            <h2>Authentication successful!</h2>
+            <p>You can close this window.</p>
+        </body>
+        </html>
+        '''
 
 @app.route('/me')
 @ensure_token  # Ensure the access token is valid before proceeding
@@ -478,6 +542,21 @@ def recommend_song():
         'recommended_by': user_id,
         'recommended_to': friend_id
         }), 201
+
+@app.route('/debug_session')
+def debug_session():
+    return jsonify({
+      'oauth_state_in_session': session.get('oauth_state'),
+      'state_in_query': request.args.get('state')
+    })
+
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', 'https://open.spotify.com')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
     
 if __name__ == '__main__':
     app.run(debug=True)
