@@ -1,0 +1,23 @@
+{
+"manifest_version": 3,
+"name": "Song Recommendor",
+"version": "1.0",
+"description": "A Chrome extension that recommends songs based on the current song playing on Spotify.",
+"permissions": [
+    "activeTab",
+    "scripting"
+],
+"host_permissions": [
+    "https://open.spotify.com/*"
+],
+"content_scripts": [
+    {
+        "matches": ["https://open.spotify.com/*"],
+        "js": ["content.js"],
+        "css": ["style.css"]
+    }
+],
+"action":{
+    "default_title": "Song Recommendor"
+}
+}
