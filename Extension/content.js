@@ -24,8 +24,7 @@ function addCustomButton() {
 
     // Add click handler
     button.addEventListener('click', async () => {
-        printToConsole('Button clicked, calling Flask API...');
-        await callFlaskAPI();
+        await handleRecommendClick();
     });
 
     // Find the search bar container and add button next to it
@@ -50,11 +49,11 @@ function addCustomButton() {
     }
 }
 
-function printToConsole(message) {
-    console.log(`[Custom Spotify Button] ${message}`);
-}
-
-async function callFlaskAPI() {
+async function handleRecommendClick() {
+    if (document.getElementById('spotify-recommend-popup')) {
+        togglePopup();
+        return;
+    }
     const button = document.getElementById('custom-spotify-button');
     const originalText = button.innerHTML;
 
@@ -63,37 +62,45 @@ async function callFlaskAPI() {
         button.innerHTML = '⏳ Loading...';
         button.disabled = true;
 
-        // Call your Flask API
-        const response = await fetch('http://127.0.0.1:5000/login', {
+        // Check authentication
+        const authResponse = await fetch('http://127.0.0.1:5000/check_auth', {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json'
             }
         });
 
-        if (response.ok) {
-            console.log('API Response received successfully:', await response.json());
-            // Show success feedback
-            button.innerHTML = '✅ Success!';
-            setTimeout(() => {
-                button.innerHTML = originalText;
-            }, 2000);
+        if (authResponse.ok) {
+            const authData = await authResponse.json();
+            console.log('Auth Data:', authData);
+            if (authData.authenticated) {
+                showPopupFriends();
+            } else{
+                showPopupAuth();
+            }
         } else {
-            throw new Error(`HTTP ${response.status}`);
+            showPopupAuth();
         }
     } catch (error) {
-        console.error('Error calling Flask API:', error);
-
-        // Show error feedback
-        button.innerHTML = '❌ Error';
-        setTimeout(() => {
-            button.innerHTML = originalText;
-        }, 2000);
+        console.error('Error checking Auth:', error);
+        showPopupAuth();
     } finally {
+        button.innerHTML = originalText;
         button.disabled = false;
     }
 }
 
+function togglePopup() {
+    console.log('Toggling popup');
+}
+
+function showPopupFriends() {
+    console.log('Showing friends popup');
+}
+
+function showPopupAuth() {
+    console.log('Showing authentication popup');
+}
 // Handle Spotify's dynamic loading
 function observeChanges() {
     const observer = new MutationObserver(() => {

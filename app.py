@@ -32,7 +32,21 @@ def login():
     }
     auth_url = "https://accounts.spotify.com/authorize?" + urlencode(params)
     print(auth_url)
-    return redirect(auth_url)
+    #return redirect(auth_url)  --> Automatically redirect the user to the Spotify authorization URL
+    return jsonify({
+            'status': 'success',
+            'auth_url': auth_url,
+            'message': 'Authorization URL generated',
+            'state': state
+        }), 200
+
+@app.route('/check_auth')
+def check_auth():
+    # Check if the user is authenticated by checking if the access token is in the session
+    if 'access_token' in session:
+        return jsonify({'authenticated': True, 'user_id': session.get('user_id')}), 200
+    else:
+        return jsonify({'authenticated': False}), 401
 
 @app.route('/callback')
 def callback():
@@ -78,6 +92,8 @@ def me():
         "https://api.spotify.com/v1/me",
         headers={"Authorization": f"Bearer {access_token}"}
     ).json()
+    if 'error' in profile:
+        return jsonify({'error': 'spotify_api_error', 'details': profile}), 400
     session['user_id'] = profile['id']  # Store the user ID in the session
     
     conn = get_db_connection()
