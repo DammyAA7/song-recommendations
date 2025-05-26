@@ -4,6 +4,8 @@ from flask_cors import CORS
 from urllib.parse import urlencode
 import sqlite3
 import os, secrets
+import time
+from functools import wraps
 
 # Initialize the Flask application
 app = Flask(__name__)
@@ -15,6 +17,63 @@ def get_db_connection():
     conn = sqlite3.connect('catalog.db')
     conn.row_factory = sqlite3.Row  # This allows us to access columns by name
     return conn
+
+def refresh_access_token():
+    refresh_token = session.get('refresh_token')
+    # If refresh token is not in session, we fetch it from the database
+    if not refresh_token:
+        conn = get_db_connection()
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'user_id_not_found'}), 401
+        # Fetch the refresh token from the database
+        row = conn.execute("""
+            SELECT refresh_token FROM users WHERE spotify_user_id = ?
+        """, (user_id,)).fetchone()
+        conn.close()
+        if not row:
+            return jsonify({'error': 'refresh_token_not_found'}), 401
+        refresh_token = row['refresh_token']
+    auth_header = requests.auth.HTTPBasicAuth(
+        os.getenv("SPOTIFY_CLIENT_ID"),
+        os.getenv("SPOTIFY_CLIENT_SECRET")
+    )
+    resp = requests.post(
+        'https://accounts.spotify.com/api/token',
+        data={
+            'grant_type':    'refresh_token',
+            'refresh_token': refresh_token
+        },
+        auth=auth_header
+    )
+    resp.raise_for_status()
+    tokens = resp.json()
+    # tokens contains: access_token, token_type, scope, expires_in
+    session['access_token'] = tokens['access_token']
+    session['expires_at']   = time.time() + tokens['expires_in']
+    if 'refresh_token' in tokens:
+        # Spotify may return a new refresh token, so we update it
+        session['refresh_token'] = tokens['refresh_token']
+
+    conn = get_db_connection()
+    # Update the access token in the database
+    conn.execute("""
+        UPDATE users
+        SET access_token = ?, refresh_token = ?, token_expiry = ?
+        WHERE spotify_user_id = ?
+    """, (session['access_token'], session['refresh_token'], session['expires_at'], session.get('user_id')))
+    conn.commit()
+    conn.close()
+    return session['access_token']
+
+def ensure_token(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        # if token expired or missing, refresh it
+        if 'access_token' not in session or time.time() >= session.get('expires_at', 0):
+            refresh_access_token()
+        return f(*args, **kwargs)
+    return decorated
 
 # Define a route for the root URL
 @app.route('/login')
@@ -79,13 +138,15 @@ def callback():
     session['access_token'] = tokens['access_token']  # Store the access token in the session
     session['refresh_token'] = tokens['refresh_token']
     session['expires_in'] = tokens['expires_in']
+    session['expires_at'] = time.time() + tokens['expires_in']  # Store the expiration time of the access token
     return redirect("http://127.0.0.1:5000/me")
 
 @app.route('/me')
+@ensure_token  # Ensure the access token is valid before proceeding
 def me():
     access_token = session.get('access_token')
     refresh_token = session.get('refresh_token')
-    token_expiry = session.get('expires_in')
+    token_expiry = session.get('expires_at')
     if not access_token or not refresh_token:
         return jsonify({'error': 'Access token not found'}), 401
     profile = requests.get(
@@ -149,6 +210,7 @@ def logout():
     return jsonify({'message': 'Logged out successfully', 'user_id': user_id}), 200
 
 @app.route('/following', methods=['GET'])
+@ensure_token  # Ensure the access token is valid before proceeding
 def get_following_artists():
     access_token = session.get('access_token')
     if not access_token:
@@ -178,6 +240,7 @@ def get_following_artists():
 
 
 @app.route('/add_friend', methods=['POST'])
+@ensure_token  # Ensure the access token is valid before proceeding
 def add_friend():
 
     access_token = session.get('access_token')
@@ -300,6 +363,7 @@ def index():
     
 # Define a route to get user recommendations
 @app.route('/recommendations', methods=['GET'])
+@ensure_token  # Ensure the access token is valid before proceeding
 def get_user_recommendations():
     access_token = session.get('access_token')
     #user_id      = session.get('user_id')
@@ -345,6 +409,7 @@ def get_user_recommendations():
 
 
 @app.route('/recommend', methods=['POST'])
+@ensure_token  # Ensure the access token is valid before proceeding
 def recommend_song():
     access_token = session.get('access_token')
     user_id = session.get('user_id')
