@@ -1,7 +1,7 @@
 .custom-button-wrapper {
   display: flex;
   align-items: center;
-  margin-left: 16px;
+  margin-left: 1px;
 }
 
 .custom-spotify-btn {
@@ -452,4 +452,68 @@
 
 .friends-container::-webkit-scrollbar-thumb:hover {
   background: #727272;
+}
+
+/* Add Friend Section */
+.add-friend-section {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #282828;
+}
+
+.add-friend-form {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.friend-input {
+  flex: 1;
+  background: #282828;
+  border: 1px solid #535353;
+  border-radius: 20px;
+  color: white;
+  font-size: 14px;
+  padding: 12px 16px;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.friend-input:focus {
+  border-color: #1db954;
+  box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.2);
+}
+
+.friend-input::placeholder {
+  color: #b3b3b3;
+}
+
+.add-friend-form .spotify-btn-primary {
+  white-space: nowrap;
+  min-width: 100px;
+}
+
+/* Messages */
+.no-friends-message,
+.error-message,
+.loading-message {
+  text-align: center;
+  padding: 40px 20px;
+  color: #b3b3b3;
+}
+
+.no-friends-message p,
+.error-message p,
+.loading-message {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.error-message {
+  color: #ff6b6b;
+}
+
+.loading-message {
+  color: #1db954;
 }

@@ -70,8 +70,6 @@ async function handleRecommendClick() {
 
         if (authResponse.ok) {
             const authData = await authResponse.json();
-            console.log('Auth Data:', authData);
-            console.log('passed auth check');
             if (authData.authenticated) {
                 showPopupFriends();
             } else {
@@ -229,9 +227,7 @@ async function handleAuthWindow(authWindow) {
         // Listen for postMessage from callback
         
         const messageHandler = (event) => {
-            console.log('Event data:', event.data);
             if (event.data === 'auth_success' && !resolved) {
-                console.log('Authentication successful');
                 resolved = true;
                 clearInterval(authCheckInterval);
                 clearTimeout(timeout);
@@ -278,17 +274,7 @@ function showPopupFriends() {
     const popup = createBasePopup();
     const content = popup.querySelector('.popup-content');
 
-    // Dummy friends data
-    const friends = [
-        { name: 'Alex Johnson', avatar: 'https://i.pravatar.cc/40?img=1', status: 'online' },
-        { name: 'Sarah Wilson', avatar: 'https://i.pravatar.cc/40?img=2', status: 'listening' },
-        { name: 'Mike Chen', avatar: 'https://i.pravatar.cc/40?img=3', status: 'online' },
-        { name: 'Emma Davis', avatar: 'https://i.pravatar.cc/40?img=4', status: 'offline' },
-        { name: 'James Brown', avatar: 'https://i.pravatar.cc/40?img=5', status: 'listening' },
-        { name: 'Lisa Garcia', avatar: 'https://i.pravatar.cc/40?img=6', status: 'online' }
-    ];
-
-    // Dummy sent recommendations data
+    // Dummy sent recommendations data (keeping as is)
     const sentRecommendations = [
         { 
             name: 'Alex Johnson', 
@@ -310,7 +296,7 @@ function showPopupFriends() {
         }
     ];
 
-    // Dummy received recommendations data
+    // Dummy received recommendations data (keeping as is)
     const receivedRecommendations = [
         { 
             name: 'Mike Chen', 
@@ -345,22 +331,14 @@ function showPopupFriends() {
       </div>
       
       <div class="tab-content" id="friends-tab">
-        <div class="friends-list">
-          ${friends.map(friend => `
-            <div class="friend-item" data-friend="${friend.name}">
-              <div class="friend-avatar">
-                <img src="${friend.avatar}" alt="${friend.name}">
-                <span class="status-indicator ${friend.status}"></span>
-              </div>
-              <div class="friend-info">
-                <span class="friend-name">${friend.name}</span>
-                <span class="friend-status">${friend.status === 'listening' ? '🎵 Listening to music' : friend.status}</span>
-              </div>
-              <button class="recommend-btn" ${friend.status === 'offline' ? 'disabled' : ''}>
-                ${friend.status === 'offline' ? 'Offline' : 'Send'}
-              </button>
-            </div>
-          `).join('')}
+        <div class="add-friend-section">
+          <div class="add-friend-form">
+            <input type="text" id="friend-input" placeholder="Enter Spotify username URL" class="friend-input">
+            <button id="add-friend-btn" class="spotify-btn-primary">Add Friend</button>
+          </div>
+        </div>
+        <div class="friends-list" id="friends-list">
+          <div class="loading-message">Loading friends...</div>
         </div>
       </div>
 
@@ -431,6 +409,179 @@ function showPopupFriends() {
     </div>
   `;
 
+    // Function to extract username from Spotify URL
+    function extractSpotifyUsername(input) {
+        const trimmedInput = input.trim();
+        
+        // Check if it's a Spotify URL
+        const spotifyUrlRegex = /https:\/\/open\.spotify\.com\/user\/([^?&/]+)/;
+        const match = trimmedInput.match(spotifyUrlRegex);
+        
+        if (match) {
+            return match[1]; // Return the captured username
+        }
+        
+        // If not a URL, assume it's already a username
+        return trimmedInput;
+    }
+
+    // Function to load friends from API
+    async function loadFriends() {
+        const friendsList = content.querySelector('#friends-list');
+        
+        try {
+            const response = await fetch('http://127.0.0.1:5000/list_friends', {
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const friends = await response.json();
+            
+            if (friends.length === 0) {
+                friendsList.innerHTML = `
+                    <div class="no-friends-message">
+                        <p>No friends yet! Add some friends to start sharing music recommendations.</p>
+                    </div>
+                `;
+            } else {
+                friendsList.innerHTML = friends.map(friend => `
+                    <div class="friend-item" data-friend="${friend.display_name || friend.spotify_user_id}">
+                        <div class="friend-avatar">
+                            <img src="${friend.avatar_url || 'https://i.pravatar.cc/40?img=1'}" alt="${friend.display_name || friend.spotify_user_id}">
+                            <span class="status-indicator online"></span>
+                        </div>
+                        <div class="friend-info">
+                            <span class="friend-name">${friend.display_name || friend.spotify_user_id}</span>
+                            <span class="friend-status">online</span>
+                        </div>
+                        <button class="recommend-btn">Send</button>
+                    </div>
+                `).join('');
+                
+                // Add click handlers for recommend buttons
+                const recommendBtns = friendsList.querySelectorAll('.recommend-btn');
+                recommendBtns.forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const friendItem = e.target.closest('.friend-item');
+                        const friendName = friendItem.dataset.friend;
+
+                        btn.innerHTML = '✅ Sent';
+                        btn.disabled = true;
+
+                        setTimeout(() => {
+                            btn.innerHTML = 'Send';
+                            btn.disabled = false;
+                        }, 2000);
+                    });
+                });
+            }
+        } catch (error) {
+            console.error('Error loading friends:', error);
+            friendsList.innerHTML = `
+                <div class="error-message">
+                    <p>Error loading friends. Please try again later.</p>
+                </div>
+            `;
+        }
+    }
+
+    // Function to add a friend
+    async function addFriend(friendInput) {
+        const addBtn = content.querySelector('#add-friend-btn');
+        const input = content.querySelector('#friend-input');
+        
+        const username = extractSpotifyUsername(friendInput);
+        
+        if (!username) {
+            alert('Please enter a valid Spotify username or profile URL');
+            return;
+        }
+
+        // Disable button and show loading state
+        addBtn.disabled = true;
+        addBtn.textContent = 'Adding...';
+
+        try {
+            const response = await fetch('http://127.0.0.1:5000/add_friend', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    friend_id: username
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Success - clear input and reload friends list
+                input.value = '';
+                await loadFriends();
+                alert('Friend added successfully!');
+            } else {
+                // Handle specific error cases
+                let errorMessage = 'Failed to add friend';
+                switch(data.error) {
+                    case 'not_following_friend':
+                        errorMessage = 'You must be following this user on Spotify to add them as a friend';
+                        break;
+                    case 'friend_already_exists':
+                        errorMessage = 'This user is already your friend';
+                        break;
+                    case 'cannot_add_yourself':
+                        errorMessage = 'You cannot add yourself as a friend';
+                        break;
+                    case 'friend_id_required':
+                        errorMessage = 'Please enter a valid username';
+                        break;
+                    default:
+                        if (data.details) {
+                            errorMessage = `Error: ${data.details.error?.message || data.error}`;
+                        }
+                }
+                alert(errorMessage);
+            }
+        } catch (error) {
+            console.error('Error adding friend:', error);
+            alert('Network error. Please check your connection and try again.');
+        } finally {
+            // Re-enable button
+            addBtn.disabled = false;
+            addBtn.textContent = 'Add Friend';
+        }
+    }
+
+    // Load friends when the popup opens
+    loadFriends();
+
+    // Add friend button event listener
+    const addFriendBtn = content.querySelector('#add-friend-btn');
+    const friendInput = content.querySelector('#friend-input');
+    
+    addFriendBtn.addEventListener('click', () => {
+        const friendInputValue = friendInput.value.trim();
+        if (friendInputValue) {
+            addFriend(friendInputValue);
+        } else {
+            alert('Please enter a Spotify username or profile URL');
+        }
+    });
+
+    // Allow adding friend with Enter key
+    friendInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            const friendInputValue = friendInput.value.trim();
+            if (friendInputValue) {
+                addFriend(friendInputValue);
+            }
+        }
+    });
+
     // Tab switching functionality
     const tabBtns = content.querySelectorAll('.tab-btn');
     const tabContents = content.querySelectorAll('.tab-content');
@@ -464,23 +615,6 @@ function showPopupFriends() {
                 songsList.classList.add('hidden');
                 btn.textContent = '▼';
             }
-        });
-    });
-
-    // Add click handlers for recommend buttons (only in friends tab)
-    const recommendBtns = content.querySelectorAll('.recommend-btn:not([disabled])');
-    recommendBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const friendItem = e.target.closest('.friend-item');
-            const friendName = friendItem.dataset.friend;
-
-            btn.innerHTML = '✅ Sent';
-            btn.disabled = true;
-
-            setTimeout(() => {
-                btn.innerHTML = 'Send';
-                btn.disabled = false;
-            }, 2000);
         });
     });
 
@@ -572,12 +706,8 @@ async function checkAuthStatus() {
             credentials: 'include'
         });
         
-        console.log('Auth check response status:', response.status);
-        
         if (response.ok) {
             const data = await response.json();
-            console.log('Auth check data:', data);
-            
             if (data.authenticated) {
                 console.log('User is authenticated');
                 closePopup();

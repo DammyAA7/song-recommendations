@@ -535,6 +535,7 @@ def add_friend():
     }), 201
 
 @app.route('/list_friends', methods=['GET'])
+@ensure_token  # Ensure the access token is valid before proceeding
 def list_friends():
     access_token = session.get('access_token')
     user_id = session.get('user_id')
@@ -674,12 +675,43 @@ def recommend_song():
             'song_id': song['id'],
             'title': song['name'],
             'artist': ', '.join(artist['name'] for artist in song['artists']),
+            'album_cover': song['album']['images'][0]['url'] if song['album']['images'] else None,
             'album': song['album']['name'],
             'year': song['album']['release_date'][:4]
         },
         'recommended_by': user_id,
         'recommended_to': friend_id
         }), 201
+
+@app.route('/get_song_id', methods=['POST'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def get_song_id():
+    access_token = session.get('access_token')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    
+    album_id = request.json.get('album_id')
+    if not album_id:
+        return jsonify({'error': 'album_id_required'}), 400
+    
+    track_name = request.json.get('track_name')
+    if not track_name:
+        return jsonify({'error': 'track_name_required'}), 400
+    # Fetch the album details from Spotify
+    album_resp = requests.get(
+        f'https://api.spotify.com/v1/albums/{album_id}',
+        headers={'Authorization': f'Bearer {access_token}'}
+    )
+    if album_resp.status_code != 200:
+        return jsonify({'error': 'spotify_api_error', 'details': album_resp.json()}), album_resp.status_code
+    album = album_resp.json()
+    # Find the track in the album   
+    for track in album.get('tracks', {}).get('items', []):
+        if track['name'].lower() == track_name.lower():
+            return jsonify({
+                'song_id': track['id'],
+            }), 200
+    return jsonify({'error': 'track_not_found_in_album'}), 404
 
 @app.route('/debug_session')
 def debug_session():
