@@ -15,24 +15,27 @@ app.secret_key = os.environ.get("SESSION_SECRET_KEY", os.urandom(24))
 #app.secret_key = os.getenv("SESSION_SECRET_KEY")
 
 # ---------------- Session Configuration ----------------
-app.config.update(
-    # Store session data on the server’s filesystem
-    SESSION_TYPE='filesystem',
 
-    # Make sessions permanent and set their lifetime :contentReference[oaicite:2]{index=2}
+app.config.update(
+    # Session configuration
+    SESSION_TYPE='filesystem',
     SESSION_PERMANENT=True,
     PERMANENT_SESSION_LIFETIME=timedelta(hours=24),
-
-    # Cookie flags to allow third-party use from your extension :contentReference[oaicite:3]{index=3}
-    SESSION_COOKIE_SAMESITE='None',
-    SESSION_COOKIE_SECURE=True,
+    
+    # Cookie configuration
+    SESSION_COOKIE_NAME='songrec_session',
     SESSION_COOKIE_HTTPONLY=True,
-
-    # Give it a custom name so it doesn’t clash with anything else
-    SESSION_COOKIE_NAME='songrec.sid',
+    SESSION_COOKIE_SECURE=True,  # Only for HTTPS
+    SESSION_COOKIE_SAMESITE='None',  # Changed from 'None' to 'Lax'
+    
+    # Add these important settings
+    SESSION_USE_SIGNER=True,
+    SESSION_KEY_PREFIX='songrec:',
+    SESSION_FILE_DIR='/tmp/flask_session',  # Ensure this directory exists and is writable
+    SESSION_FILE_THRESHOLD=500,
+    SESSION_FILE_MODE=384,  # 0o600 in octal
 )
 
-# Bind the Session interface to your app
 Session(app)
 
 
@@ -40,7 +43,7 @@ CORS(app,
      origins=["https://open.spotify.com", "chrome-extension://ijageeaiiaemphkdojoopbmphopjoipk"], 
      supports_credentials=True,
      allow_headers=["Content-Type", "Authorization"],
-     methods=["GET", "POST", "OPTIONS"])
+     methods=["GET", "POST", "OPTIONS", "DELETE"])
 
 # Function to establish a connection to the SQLite database
 def get_db_connection():
@@ -383,7 +386,8 @@ def me():
 def logout():
     # Clear the session data
     user_id = session.get('user_id')
-    print(f"Logging out user_id: {user_id}")
+    access_token = session.get('access_token')
+    print(f"Logging out user_id: {user_id}, access_token: {'Present' if access_token else 'Missing'}")
     if user_id:
         conn = get_db_connection()
         conn.execute("""

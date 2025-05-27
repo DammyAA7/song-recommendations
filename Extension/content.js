@@ -163,6 +163,12 @@ async function handleAuthFlow() {
 
                 // Handle the auth flow
                 await handleAuthWindow(authWindow);
+                
+                // After successful auth, close current popup and show friends
+                console.log('Auth completed successfully, showing friends popup');
+                closePopup();
+                setTimeout(() => showPopupFriends(), 300);
+                
             } else {
                 throw new Error('No auth URL received');
             }
@@ -282,36 +288,186 @@ function showPopupFriends() {
         { name: 'Lisa Garcia', avatar: 'https://i.pravatar.cc/40?img=6', status: 'online' }
     ];
 
+    // Dummy sent recommendations data
+    const sentRecommendations = [
+        { 
+            name: 'Alex Johnson', 
+            avatar: 'https://i.pravatar.cc/40?img=1',
+            count: 3,
+            songs: [
+                { title: 'Blinding Lights', artist: 'The Weeknd', sentAt: '2 hours ago' },
+                { title: 'Good 4 U', artist: 'Olivia Rodrigo', sentAt: '1 day ago' },
+                { title: 'Stay', artist: 'The Kid LAROI, Justin Bieber', sentAt: '2 days ago' }
+            ]
+        },
+        { 
+            name: 'Sarah Wilson', 
+            avatar: 'https://i.pravatar.cc/40?img=2',
+            count: 1,
+            songs: [
+                { title: 'Levitating', artist: 'Dua Lipa', sentAt: '3 hours ago' }
+            ]
+        }
+    ];
+
+    // Dummy received recommendations data
+    const receivedRecommendations = [
+        { 
+            name: 'Mike Chen', 
+            avatar: 'https://i.pravatar.cc/40?img=3',
+            count: 2,
+            songs: [
+                { title: 'Heat Waves', artist: 'Glass Animals', receivedAt: '1 hour ago' },
+                { title: 'Bad Habits', artist: 'Ed Sheeran', receivedAt: '4 hours ago' }
+            ]
+        },
+        { 
+            name: 'Emma Davis', 
+            avatar: 'https://i.pravatar.cc/40?img=4',
+            count: 4,
+            songs: [
+                { title: 'Industry Baby', artist: 'Lil Nas X, Jack Harlow', receivedAt: '30 minutes ago' },
+                { title: 'Peaches', artist: 'Justin Bieber', receivedAt: '2 hours ago' },
+                { title: 'Kiss Me More', artist: 'Doja Cat, SZA', receivedAt: '1 day ago' },
+                { title: 'Montero', artist: 'Lil Nas X', receivedAt: '2 days ago' }
+            ]
+        }
+    ];
+
     content.innerHTML = `
     <div class="friends-container">
       <div class="popup-header">
+        <div class="tab-navigation">
+          <button class="tab-btn active" data-tab="friends">Friends</button>
+          <button class="tab-btn" data-tab="sent">Sent</button>
+          <button class="tab-btn" data-tab="received">Received</button>
+        </div>
       </div>
       
-      <div class="friends-list">
-        ${friends.map(friend => `
-          <div class="friend-item" data-friend="${friend.name}">
-            <div class="friend-avatar">
-              <img src="${friend.avatar}" alt="${friend.name}">
-              <span class="status-indicator ${friend.status}"></span>
+      <div class="tab-content" id="friends-tab">
+        <div class="friends-list">
+          ${friends.map(friend => `
+            <div class="friend-item" data-friend="${friend.name}">
+              <div class="friend-avatar">
+                <img src="${friend.avatar}" alt="${friend.name}">
+                <span class="status-indicator ${friend.status}"></span>
+              </div>
+              <div class="friend-info">
+                <span class="friend-name">${friend.name}</span>
+                <span class="friend-status">${friend.status === 'listening' ? '🎵 Listening to music' : friend.status}</span>
+              </div>
+              <button class="recommend-btn" ${friend.status === 'offline' ? 'disabled' : ''}>
+                ${friend.status === 'offline' ? 'Offline' : 'Send'}
+              </button>
             </div>
-            <div class="friend-info">
-              <span class="friend-name">${friend.name}</span>
-              <span class="friend-status">${friend.status === 'listening' ? '🎵 Listening to music' : friend.status}</span>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="tab-content hidden" id="sent-tab">
+        <div class="recommendations-list">
+          ${sentRecommendations.map(person => `
+            <div class="recommendation-person" data-person="${person.name}">
+              <div class="person-header">
+                <div class="friend-avatar">
+                  <img src="${person.avatar}" alt="${person.name}">
+                </div>
+                <div class="friend-info">
+                  <span class="friend-name">${person.name}</span>
+                  <span class="friend-status">${person.count} song${person.count > 1 ? 's' : ''} sent</span>
+                </div>
+                <button class="expand-btn">▼</button>
+              </div>
+              <div class="songs-list hidden">
+                ${person.songs.map(song => `
+                  <div class="song-item">
+                    <div class="song-info">
+                      <span class="song-title">${song.title}</span>
+                      <span class="song-artist">${song.artist}</span>
+                    </div>
+                    <span class="song-time">${song.sentAt}</span>
+                  </div>
+                `).join('')}
+              </div>
             </div>
-            <button class="recommend-btn" ${friend.status === 'offline' ? 'disabled' : ''}>
-              ${friend.status === 'offline' ? 'Offline' : 'Send'}
-            </button>
-          </div>
-        `).join('')}
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="tab-content hidden" id="received-tab">
+        <div class="recommendations-list">
+          ${receivedRecommendations.map(person => `
+            <div class="recommendation-person" data-person="${person.name}">
+              <div class="person-header">
+                <div class="friend-avatar">
+                  <img src="${person.avatar}" alt="${person.name}">
+                </div>
+                <div class="friend-info">
+                  <span class="friend-name">${person.name}</span>
+                  <span class="friend-status">${person.count} song${person.count > 1 ? 's' : ''} received</span>
+                </div>
+                <button class="expand-btn">▼</button>
+              </div>
+              <div class="songs-list hidden">
+                ${person.songs.map(song => `
+                  <div class="song-item">
+                    <div class="song-info">
+                      <span class="song-title">${song.title}</span>
+                      <span class="song-artist">${song.artist}</span>
+                    </div>
+                    <span class="song-time">${song.receivedAt}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
       </div>
       
       <div class="popup-footer">
+        <button id="debug-friends-btn" class="spotify-btn-secondary">Debug Session</button>
         <button id="logout-btn" class="spotify-btn-secondary">Logout</button>
       </div>
     </div>
   `;
 
-    // Add click handlers for recommend buttons
+    // Tab switching functionality
+    const tabBtns = content.querySelectorAll('.tab-btn');
+    const tabContents = content.querySelectorAll('.tab-content');
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Remove active class from all tabs
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.add('hidden'));
+
+            // Add active class to clicked tab
+            btn.classList.add('active');
+            const targetTab = content.querySelector(`#${btn.dataset.tab}-tab`);
+            if (targetTab) {
+                targetTab.classList.remove('hidden');
+            }
+        });
+    });
+
+    // Expand/collapse functionality for sent and received lists
+    const expandBtns = content.querySelectorAll('.expand-btn');
+    expandBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const personItem = btn.closest('.recommendation-person');
+            const songsList = personItem.querySelector('.songs-list');
+            
+            if (songsList.classList.contains('hidden')) {
+                songsList.classList.remove('hidden');
+                btn.textContent = '▲';
+            } else {
+                songsList.classList.add('hidden');
+                btn.textContent = '▼';
+            }
+        });
+    });
+
+    // Add click handlers for recommend buttons (only in friends tab)
     const recommendBtns = content.querySelectorAll('.recommend-btn:not([disabled])');
     recommendBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -328,11 +484,30 @@ function showPopupFriends() {
         });
     });
 
+    // Add debug button handler
+    const debugBtn = content.querySelector('#debug-friends-btn');
+    debugBtn.addEventListener('click', async () => {
+        try {
+            const response = await fetch('http://127.0.0.1:5000/debug_session', {
+                credentials: 'include'
+            });
+            const data = await response.json();
+            console.log('Friends Debug Session:', data);
+            alert(`Friends Debug Session:\n${JSON.stringify(data, null, 2)}`);
+        } catch (error) {
+            console.error('Friends Debug error:', error);
+            alert('Debug Error: ' + error.message);
+        }
+    });
+
     // Add logout handler
     const logoutBtn = content.querySelector('#logout-btn');
     logoutBtn.addEventListener('click', async () => {
         try {
-            await fetch('http://127.0.0.1:5000/logout', { method: 'GET' });
+            await fetch('http://127.0.0.1:5000/logout', { 
+                method: 'GET', 
+                credentials: 'include'
+            });
             closePopup();
         } catch (error) {
             console.error('Logout error:', error);
