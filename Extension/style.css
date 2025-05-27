@@ -410,6 +410,7 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  max-width: 200px;
 }
 
 .song-title {
@@ -417,11 +418,19 @@
   font-weight: 600;
   font-size: 14px;
   margin-bottom: 2px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  line-height: 1.2;
 }
 
 .song-artist {
   color: #b3b3b3;
   font-size: 12px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  line-height: 1.2;
 }
 
 .song-time {
@@ -516,4 +525,161 @@
 
 .loading-message {
   color: #1db954;
+}
+
+/* Recommendation Song Item Styles */
+.song-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #1a1a1a;
+  transition: background 0.2s ease;
+  gap: 12px;
+}
+
+.song-item:last-child {
+  border-bottom: none;
+}
+
+.song-item:hover {
+  background: #1a1a1a;
+}
+
+/* Album Cover */
+.song-album-cover {
+  flex-shrink: 0;
+}
+
+.album-cover {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #282828;
+}
+
+/* Song Details Container */
+.song-details {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  gap: 12px;
+}
+
+.song-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0; /* Allow text truncation */
+}
+
+.song-title {
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-artist {
+  color: #b3b3b3;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Song Actions */
+.song-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.like-btn,
+.dislike-btn,
+.play-btn {
+  background: none;
+  border: none;
+  color: #b3b3b3;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.like-btn:hover,
+.dislike-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.play-btn:hover {
+  background: rgba(29, 185, 84, 0.1);
+  color: #1db954;
+}
+
+/* Active states for like/dislike */
+.like-btn.active {
+  color: #1db954;
+  background: rgba(29, 185, 84, 0.1);
+}
+
+.dislike-btn.active {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+}
+
+.like-btn.active:hover {
+  color: #1ed760;
+  background: rgba(29, 185, 84, 0.2);
+}
+
+.dislike-btn.active:hover {
+  color: #ff5252;
+  background: rgba(255, 107, 107, 0.2);
+}
+
+/* No recommendations message */
+.no-recommendations-message {
+  text-align: center;
+  padding: 40px 20px;
+  color: #b3b3b3;
+}
+
+.no-recommendations-message p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.no-recommendations-message p:last-child {
+  margin-bottom: 0;
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 480px) {
+  .song-details {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .song-actions {
+    align-self: flex-end;
+  }
+  
+  .album-cover {
+    width: 50px;
+    height: 50px;
+  }
 }

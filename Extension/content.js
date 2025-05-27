@@ -56,7 +56,6 @@ async function handleRecommendClick() {
     }
     const button = document.getElementById('custom-spotify-button');
     const originalText = button.innerHTML;
-
     try {
         // Show loading state
         button.innerHTML = '⏳ Loading...';
@@ -86,6 +85,7 @@ async function handleRecommendClick() {
         button.innerHTML = originalText;
         button.disabled = false;
     }
+    
 }
 
 function createBasePopup() {
@@ -274,52 +274,6 @@ function showPopupFriends() {
     const popup = createBasePopup();
     const content = popup.querySelector('.popup-content');
 
-    // Dummy sent recommendations data (keeping as is)
-    const sentRecommendations = [
-        { 
-            name: 'Alex Johnson', 
-            avatar: 'https://i.pravatar.cc/40?img=1',
-            count: 3,
-            songs: [
-                { title: 'Blinding Lights', artist: 'The Weeknd', sentAt: '2 hours ago' },
-                { title: 'Good 4 U', artist: 'Olivia Rodrigo', sentAt: '1 day ago' },
-                { title: 'Stay', artist: 'The Kid LAROI, Justin Bieber', sentAt: '2 days ago' }
-            ]
-        },
-        { 
-            name: 'Sarah Wilson', 
-            avatar: 'https://i.pravatar.cc/40?img=2',
-            count: 1,
-            songs: [
-                { title: 'Levitating', artist: 'Dua Lipa', sentAt: '3 hours ago' }
-            ]
-        }
-    ];
-
-    // Dummy received recommendations data (keeping as is)
-    const receivedRecommendations = [
-        { 
-            name: 'Mike Chen', 
-            avatar: 'https://i.pravatar.cc/40?img=3',
-            count: 2,
-            songs: [
-                { title: 'Heat Waves', artist: 'Glass Animals', receivedAt: '1 hour ago' },
-                { title: 'Bad Habits', artist: 'Ed Sheeran', receivedAt: '4 hours ago' }
-            ]
-        },
-        { 
-            name: 'Emma Davis', 
-            avatar: 'https://i.pravatar.cc/40?img=4',
-            count: 4,
-            songs: [
-                { title: 'Industry Baby', artist: 'Lil Nas X, Jack Harlow', receivedAt: '30 minutes ago' },
-                { title: 'Peaches', artist: 'Justin Bieber', receivedAt: '2 hours ago' },
-                { title: 'Kiss Me More', artist: 'Doja Cat, SZA', receivedAt: '1 day ago' },
-                { title: 'Montero', artist: 'Lil Nas X', receivedAt: '2 days ago' }
-            ]
-        }
-    ];
-
     content.innerHTML = `
     <div class="friends-container">
       <div class="popup-header">
@@ -343,62 +297,14 @@ function showPopupFriends() {
       </div>
 
       <div class="tab-content hidden" id="sent-tab">
-        <div class="recommendations-list">
-          ${sentRecommendations.map(person => `
-            <div class="recommendation-person" data-person="${person.name}">
-              <div class="person-header">
-                <div class="friend-avatar">
-                  <img src="${person.avatar}" alt="${person.name}">
-                </div>
-                <div class="friend-info">
-                  <span class="friend-name">${person.name}</span>
-                  <span class="friend-status">${person.count} song${person.count > 1 ? 's' : ''} sent</span>
-                </div>
-                <button class="expand-btn">▼</button>
-              </div>
-              <div class="songs-list hidden">
-                ${person.songs.map(song => `
-                  <div class="song-item">
-                    <div class="song-info">
-                      <span class="song-title">${song.title}</span>
-                      <span class="song-artist">${song.artist}</span>
-                    </div>
-                    <span class="song-time">${song.sentAt}</span>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          `).join('')}
+        <div class="recommendations-list" id="sent-recommendations">
+           <div class="loading-message">Loading sent recommendations...</div>
         </div>
       </div>
 
       <div class="tab-content hidden" id="received-tab">
-        <div class="recommendations-list">
-          ${receivedRecommendations.map(person => `
-            <div class="recommendation-person" data-person="${person.name}">
-              <div class="person-header">
-                <div class="friend-avatar">
-                  <img src="${person.avatar}" alt="${person.name}">
-                </div>
-                <div class="friend-info">
-                  <span class="friend-name">${person.name}</span>
-                  <span class="friend-status">${person.count} song${person.count > 1 ? 's' : ''} received</span>
-                </div>
-                <button class="expand-btn">▼</button>
-              </div>
-              <div class="songs-list hidden">
-                ${person.songs.map(song => `
-                  <div class="song-item">
-                    <div class="song-info">
-                      <span class="song-title">${song.title}</span>
-                      <span class="song-artist">${song.artist}</span>
-                    </div>
-                    <span class="song-time">${song.receivedAt}</span>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          `).join('')}
+        <div class="recommendations-list" id="received-recommendations">
+          <div class="loading-message">Loading received recommendations...</div>
         </div>
       </div>
       
@@ -425,6 +331,292 @@ function showPopupFriends() {
         return trimmedInput;
     }
 
+    async function loadSentRecommendations() {
+        const sentContainer = content.querySelector('#sent-recommendations');
+        
+        try {
+            const response = await fetch('http://127.0.0.1:5000/sent_recommendations', {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const recommendations = await response.json();
+            
+            if (recommendations.length === 0) {
+                sentContainer.innerHTML = `
+                    <div class="no-recommendations-message">
+                        <p>No recommendations sent yet!</p>
+                        <p>Start recommending songs to your friends.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group recommendations by friend
+            const groupedRecommendations = recommendations.reduce((acc, rec) => {
+                const friendName = rec.friend_name || rec.friend_id;
+                if (!acc[friendName]) {
+                    acc[friendName] = [];
+                }
+                acc[friendName].push(rec);
+                return acc;
+            }, {});
+
+            let html = '';
+            for (const [friendName, friendRecs] of Object.entries(groupedRecommendations)) {
+                const count = friendRecs.length;
+                const noAvatar = "https://media.istockphoto.com/id/945691510/vector/people-icon-silhouettes-illustration-vector.jpg?s=612x612&w=0&k=20&c=chZcclmonc5T002ErDfMZ6KYz01tfHnd-Hzk4EfMJ6k=";
+                const friendAvatar = friendRecs[0].friend_avatar || noAvatar;
+                
+                html += `
+                    <div class="recommendation-person" data-person="${friendName}">
+                        <div class="person-header">
+                            <div class="friend-avatar">
+                                <img src="${friendAvatar}" alt="${friendName}">
+                            </div>
+                            <div class="friend-info">
+                                <span class="friend-name">${friendName}</span>
+                                <span class="friend-status">${count} song${count > 1 ? 's' : ''} sent</span>
+                            </div>
+                            <button class="expand-btn">▼</button>
+                        </div>
+                        <div class="songs-list hidden">
+                            ${friendRecs.map(rec => `
+                                <div class="song-item">
+                                    <div class="song-album-cover">
+                                        <img src="${rec.track_cover || 'https://via.placeholder.com/60x60/1db954/white?text=♪'}" alt="${rec.title}" class="album-cover">
+                                    </div>
+                                    <div class="song-details">
+                                        <div class="song-info">
+                                            <span class="song-title">${rec.title}</span>
+                                            <span class="song-artist">${rec.artist}</span>
+                                        </div>
+                                        <div class="song-actions">
+                                            <span class="song-time">Sent</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            sentContainer.innerHTML = html;
+            
+        } catch (error) {
+            console.error('Error loading sent recommendations:', error);
+            sentContainer.innerHTML = `
+                <div class="error-message">
+                    <p>Error loading sent recommendations. Please try again later.</p>
+                </div>
+            `;
+        }
+    }
+
+    // Function to load received recommendations
+    async function loadReceivedRecommendations() {
+        const receivedContainer = content.querySelector('#received-recommendations');
+        
+        try {
+            const response = await fetch('http://127.0.0.1:5000/recommendations', {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const recommendations = await response.json();
+            
+            if (recommendations.length === 0) {
+                receivedContainer.innerHTML = `
+                    <div class="no-recommendations-message">
+                        <p>No recommendations received yet!</p>
+                        <p>Ask your friends to send you some music recommendations.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group recommendations by user
+            const groupedRecommendations = recommendations.reduce((acc, rec) => {
+                const userId = rec.recommended_by;
+                if (!acc[userId]) {
+                    acc[userId] = [];
+                }
+                acc[userId].push(rec);
+                return acc;
+            }, {});
+
+            let html = '';
+            for (const [userId, userRecs] of Object.entries(groupedRecommendations)) {
+                const userName = userId; // You might want to fetch display names separately
+                const count = userRecs.length;
+                const noAvatar = "https://media.istockphoto.com/id/945691510/vector/people-icon-silhouettes-illustration-vector.jpg?s=612x612&w=0&k=20&c=chZcclmonc5T002ErDfMZ6KYz01tfHnd-Hzk4EfMJ6k=";
+                const userAvatar = userRecs[0].friend_avatar || noAvatar;
+                html += `
+                    <div class="recommendation-person" data-person="${userName}">
+                        <div class="person-header">
+                            <div class="friend-avatar">
+                                <img src="${userAvatar}" alt="${userName}">
+                            </div>
+                            <div class="friend-info">
+                                <span class="friend-name">${userName}</span>
+                                <span class="friend-status">${count} song${count > 1 ? 's' : ''} received</span>
+                            </div>
+                            <button class="expand-btn">▼</button>
+                        </div>
+                        <div class="songs-list hidden">
+                            ${userRecs.map(rec => `
+                                <div class="song-item" data-song-id="${rec.song_id}" data-rec-id="${rec.recommendation_id || ''}">
+                                    <div class="song-album-cover">
+                                        <img src="${rec.track_cover || 'https://via.placeholder.com/60x60/1db954/white?text=♪'}" alt="${rec.title}" class="album-cover">
+                                    </div>
+                                    <div class="song-details">
+                                        <div class="song-info">
+                                            <span class="song-title">${rec.title}</span>
+                                            <span class="song-artist">${rec.artist}</span>
+                                        </div>
+                                        <div class="song-actions">
+                                            <button class="like-btn" data-action="like" title="Like">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                                </svg>
+                                            </button>
+                                            <button class="dislike-btn" data-action="dislike" title="Dislike">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
+                                                </svg>
+                                            </button>
+                                            <button class="play-btn" title="Play Now">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                    <polygon points="5,3 19,12 5,21"></polygon>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            receivedContainer.innerHTML = html;
+            
+            // Add event listeners for like/dislike buttons
+            setupRecommendationActions();
+            
+        } catch (error) {
+            console.error('Error loading recommendations:', error);
+            receivedContainer.innerHTML = `
+                <div class="error-message">
+                    <p>Error loading recommendations. Please try again later.</p>
+                </div>
+            `;
+        }
+    }
+
+    // Function to handle like/dislike actions
+    function setupRecommendationActions() {
+        const songItems = content.querySelectorAll('#received-tab .song-item');
+        
+        songItems.forEach(songItem => {
+            const songId = songItem.dataset.songId;
+            const recId = songItem.dataset.recId;
+            const likeBtn = songItem.querySelector('.like-btn');
+            const dislikeBtn = songItem.querySelector('.dislike-btn');
+            const playBtn = songItem.querySelector('.play-btn');
+            
+            // Like button handler
+            likeBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                
+                const isActive = likeBtn.classList.contains('active');
+                const action = isActive ? 'NULL' : 'like';
+                
+                try {
+                    const response = await fetch('http://127.0.0.1:5000/like_recommendation', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            recommendation_id: recId,
+                            song_id: songId,
+                            action: action
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        // Update UI
+                        if (action === 'like') {
+                            likeBtn.classList.add('active');
+                            dislikeBtn.classList.remove('active');
+                        } else {
+                            likeBtn.classList.remove('active');
+                        }
+                    } else {
+                        console.error('Failed to update like status');
+                    }
+                } catch (error) {
+                    console.error('Error updating like status:', error);
+                }
+            });
+            
+            // Dislike button handler
+            dislikeBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                
+                const isActive = dislikeBtn.classList.contains('active');
+                const action = isActive ? 'NULL' : 'dislike';
+                
+                try {
+                    const response = await fetch('http://127.0.0.1:5000/like_recommendation', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            recommendation_id: recId,
+                            song_id: songId,
+                            action: action
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        // Update UI
+                        if (action === 'dislike') {
+                            dislikeBtn.classList.add('active');
+                            likeBtn.classList.remove('active');
+                        } else {
+                            dislikeBtn.classList.remove('active');
+                        }
+                    } else {
+                        console.error('Failed to update dislike status');
+                    }
+                } catch (error) {
+                    console.error('Error updating dislike status:', error);
+                }
+            });
+            
+            // Play button handler (placeholder - doesn't do anything as requested)
+            playBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // Button doesn't do anything as requested
+                console.log('Play button clicked for song:', songId);
+            });
+        });
+    }
+
     // Function to load friends from API
     async function loadFriends() {
         const friendsList = content.querySelector('#friends-list');
@@ -447,10 +639,11 @@ function showPopupFriends() {
                     </div>
                 `;
             } else {
+                const noAvatar = "https://media.istockphoto.com/id/945691510/vector/people-icon-silhouettes-illustration-vector.jpg?s=612x612&w=0&k=20&c=chZcclmonc5T002ErDfMZ6KYz01tfHnd-Hzk4EfMJ6k=";
                 friendsList.innerHTML = friends.map(friend => `
-                    <div class="friend-item" data-friend="${friend.display_name || friend.spotify_user_id}">
+                    <div class="friend-item" data-friend="${friend.spotify_user_id}">
                         <div class="friend-avatar">
-                            <img src="${friend.avatar_url || 'https://i.pravatar.cc/40?img=1'}" alt="${friend.display_name || friend.spotify_user_id}">
+                            <img src="${friend.avatar_url || noAvatar}" alt="${friend.display_name || friend.spotify_user_id}">
                             <span class="status-indicator online"></span>
                         </div>
                         <div class="friend-info">
@@ -464,17 +657,62 @@ function showPopupFriends() {
                 // Add click handlers for recommend buttons
                 const recommendBtns = friendsList.querySelectorAll('.recommend-btn');
                 recommendBtns.forEach(btn => {
-                    btn.addEventListener('click', (e) => {
+                    btn.addEventListener('click', async (e) => {
                         const friendItem = e.target.closest('.friend-item');
-                        const friendName = friendItem.dataset.friend;
-
-                        btn.innerHTML = '✅ Sent';
+                        const friendId = friendItem.dataset.friend;
+                        
+                        // Disable button and show loading state
+                        btn.innerHTML = 'Sending...';
                         btn.disabled = true;
-
-                        setTimeout(() => {
+                        btn.style.background = '#535353';
+                        
+                        try {
+                            // Get currently playing song
+                            const currentSong = await getCurrentlyPlayingSong();
+                            
+                            if (!currentSong) {
+                                alert('No song is currently playing or song information could not be detected. Please make sure a song is playing on Spotify.');
+                                return;
+                            }
+                            
+                            // Get song ID from API
+                            const songData = await getSongId(currentSong.albumId, currentSong.title);
+                            
+                            // Recommend song to friend
+                            await recommendSongToFriend(friendId, songData.song_id);
+                            
+                            // Show success state
+                            btn.innerHTML = 'Sent';
+                            btn.style.background = '#1db954';
+                            
+                            alert(`Successfully recommended "${songData.title}" by ${songData.artist} to ${friendId}!`);
+                            
+                        } catch (error) {
+                            console.error('Error sending recommendation:', error);
+                            
+                            let errorMessage = 'Failed to send recommendation. ';
+                            if (error.message.includes('album_id_required') || error.message.includes('track_name_required')) {
+                                errorMessage += 'Could not detect the currently playing song.';
+                            } else if (error.message.includes('track_not_found_in_album')) {
+                                errorMessage += 'Song not found in the album.';
+                            } else if (error.message.includes('Song has already been recommended')) {
+                                errorMessage += 'You have already recommended this song to this friend.';
+                            } else {
+                                errorMessage += error.message;
+                            }
+                            
+                            alert(errorMessage);
+                            
                             btn.innerHTML = 'Send';
-                            btn.disabled = false;
-                        }, 2000);
+                            btn.style.background = '#1db954';
+                        } finally {
+                            // Re-enable button after delay
+                            setTimeout(() => {
+                                btn.innerHTML = 'Send';
+                                btn.disabled = false;
+                                btn.style.background = '#1db954';
+                            }, 2000);
+                        }
                     });
                 });
             }
@@ -587,35 +825,43 @@ function showPopupFriends() {
     const tabContents = content.querySelectorAll('.tab-content');
 
     tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            // Remove active class from all tabs
-            tabBtns.forEach(b => b.classList.remove('active'));
-            tabContents.forEach(c => c.classList.add('hidden'));
+    btn.addEventListener('click', () => {
+        // Remove active class from all tabs
+        tabBtns.forEach(b => b.classList.remove('active'));
+        tabContents.forEach(c => c.classList.add('hidden'));
 
-            // Add active class to clicked tab
-            btn.classList.add('active');
-            const targetTab = content.querySelector(`#${btn.dataset.tab}-tab`);
-            if (targetTab) {
-                targetTab.classList.remove('hidden');
+        // Add active class to clicked tab
+        btn.classList.add('active');
+        const targetTab = content.querySelector(`#${btn.dataset.tab}-tab`);
+        if (targetTab) {
+            targetTab.classList.remove('hidden');
+            
+            // Load recommendations when received tab is clicked
+            if (btn.dataset.tab === 'received') {
+                loadReceivedRecommendations();
             }
-        });
+            // Load sent recommendations when sent tab is clicked
+            else if (btn.dataset.tab === 'sent') {
+                loadSentRecommendations();
+            }
+        }
     });
+});
 
     // Expand/collapse functionality for sent and received lists
-    const expandBtns = content.querySelectorAll('.expand-btn');
-    expandBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const personItem = btn.closest('.recommendation-person');
+    content.addEventListener('click', (e) => {
+        if (e.target.classList.contains('expand-btn')) {
+            const personItem = e.target.closest('.recommendation-person');
             const songsList = personItem.querySelector('.songs-list');
             
             if (songsList.classList.contains('hidden')) {
                 songsList.classList.remove('hidden');
-                btn.textContent = '▲';
+                e.target.textContent = '▲';
             } else {
                 songsList.classList.add('hidden');
-                btn.textContent = '▼';
+                e.target.textContent = '▼';
             }
-        });
+        }
     });
 
     // Add debug button handler
@@ -650,7 +896,6 @@ function showPopupFriends() {
 
     document.body.appendChild(popup);
 }
-
 function showPopupAuth() {
     const popup = createBasePopup();
     const content = popup.querySelector('.popup-content');
@@ -697,6 +942,97 @@ function showPopupAuth() {
 
     document.body.appendChild(popup);
 }
+
+async function getCurrentlyPlayingSong() {
+    // Try to find the album link element that contains both song name and album ID
+    const albumLinkElement = document.querySelector('[data-testid="context-item-link"]');
+    
+    let songTitle = null;
+    let albumId = null;
+    
+    if (albumLinkElement) {
+        // Extract song title from the link text
+        songTitle = albumLinkElement.textContent.trim();
+        
+        // Extract album ID from href attribute
+        const albumUrl = albumLinkElement.href;
+        const albumMatch = albumUrl.match(/\/album\/([a-zA-Z0-9]+)/);
+        if (albumMatch) {
+            albumId = albumMatch[1];
+        }
+    }
+    
+    // Fallback: try to get album ID from current page URL if on album page
+    if (!albumId && window.location.href.includes('/album/')) {
+        const urlMatch = window.location.href.match(/\/album\/([a-zA-Z0-9]+)/);
+        if (urlMatch) {
+            albumId = urlMatch[1];
+        }
+    }
+    
+    // Fallback for song title if not found above
+    
+    if (songTitle && albumId) {
+        return {
+            title: songTitle,
+            albumId: albumId
+        };
+    }
+    
+    return null;
+}
+
+async function getSongId(albumId, trackName) {
+    try {
+        const response = await fetch('http://127.0.0.1:5000/get_song_id', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                album_id: albumId,
+                track_name: trackName
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error getting song ID:', error);
+        throw error;
+    }
+}
+
+async function recommendSongToFriend(friendId, songId) {
+    try {
+        const response = await fetch('http://127.0.0.1:5000/recommend', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                friend_id: friendId,
+                song_id: songId
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to recommend song');
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error recommending song:', error);
+        throw error;
+    }
+}
+
 
 async function checkAuthStatus() {
     try {

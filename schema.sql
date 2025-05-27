@@ -34,17 +34,12 @@ CREATE INDEX IF NOT EXISTS idx_recommendations_friend_created
 CREATE TABLE IF NOT EXISTS recommendationSongs (
     recommendation_id INTEGER NOT NULL,
     song_id           INTEGER NOT NULL,
+    like_dislike BOOLEAN DEFAULT NULL, -- Indicates if the song is liked/disliked
     PRIMARY KEY (recommendation_id, song_id),
     FOREIGN KEY (recommendation_id) REFERENCES recommendations(id) ON DELETE CASCADE,
     FOREIGN KEY (song_id)          REFERENCES songs(song_id)      ON DELETE CASCADE
 );
 
-
-CREATE TABLE IF NOT EXISTS likes (
-    song_id INT NOT NULL, -- Identifier for the song, cannot be null
-    user_id INT NOT NULL, -- Identifier for the user, cannot be null
-    PRIMARY KEY (song_id, user_id) -- Composite primary key
-);
 
 -- Create table for storing OAuth states
 CREATE TABLE IF NOT EXISTS oauth_states (

@@ -569,15 +569,15 @@ def index():
 @ensure_token  # Ensure the access token is valid before proceeding
 def get_user_recommendations():
     access_token = session.get('access_token')
-    #user_id      = session.get('user_id')
-    user_id = "0stwt8dz3gqug7j3zdvnoe26s"  # For testing purposes, hardcoded user_id
+    user_id      = session.get('user_id')
+    #user_id = "0stwt8dz3gqug7j3zdvnoe26s"  # For testing purposes, hardcoded user_id
     if not access_token or not user_id:
         return jsonify({'error': 'not_authenticated'}), 401
 
     conn = get_db_connection()  # Establish a database connection
     # Execute a SQL query to retrieve song details for the given user_id
     recommendations = conn.execute('''
-                                SELECT rs.song_id, r.user_id As recommended_by
+                                SELECT rs.song_id, rs.recommendation_id, r.user_id As recommended_by
                                 FROM recommendations r
                                 JOIN recommendationSongs rs 
                                    ON r.id = rs.recommendation_id
@@ -590,7 +590,20 @@ def get_user_recommendations():
 
     for row in recommendations:
         song_id = row['song_id'] 
+        rec_id = row['recommendation_id']
         rec_by = row['recommended_by']
+
+        conn = get_db_connection()
+        friend_avatar = conn.execute('''
+            SELECT spotify_avatar_url 
+            FROM users 
+            WHERE spotify_user_id = ?
+        ''', (rec_by,)).fetchone()
+        conn.close()
+        if not friend_avatar:
+            friend_avatar = None
+        else:
+            friend_avatar = friend_avatar['spotify_avatar_url']
 
         song_resp = requests.get(
             'https://api.spotify.com/v1/tracks/' + song_id,
@@ -603,13 +616,78 @@ def get_user_recommendations():
                 'title': song['name'],
                 'artist': ', '.join(artist['name'] for artist in song['artists']),
                 'album': song['album']['name'],
+                'track_cover': song['album']['images'][0]['url'] if song['album']['images'] else None,
                 'year': song['album']['release_date'][:4],
-                'recommended_by': rec_by
+                'recommended_by': rec_by,
+                'recommendation_id': rec_id,
+                'friend_avatar': friend_avatar
             })
         else:
             tracks.append({'error': 'spotify_api_error', 'details': song_resp.json()})
     return jsonify(tracks)
 
+@app.route('/sent_recommendations', methods=['GET'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def get_sent_recommendations():
+    access_token = session.get('access_token')
+    user_id      = session.get('user_id')
+    if not access_token or not user_id:
+        return jsonify({'error': 'not_authenticated'}), 401
+
+    conn = get_db_connection()
+    # Retrieve recommendations sent by the user
+    recommendations = conn.execute('''
+                                SELECT rs.song_id, rs.recommendation_id, r.friend_id AS recommended_to
+                                FROM recommendations r
+                                JOIN recommendationSongs rs 
+                                   ON r.id = rs.recommendation_id
+                                WHERE r.user_id = ?
+                                   ORDER BY r.created_at DESC
+                            ''', (user_id,)).fetchall()
+    conn.close()
+    # Convert the result to a list of dictionaries and return as JSON
+    tracks = []
+    for row in recommendations: 
+        song_id = row['song_id'] 
+        rec_id = row['recommendation_id']
+        rec_to = row['recommended_to']
+
+        conn = get_db_connection()
+        friend = conn.execute('''
+            SELECT spotify_display_name, spotify_avatar_url 
+            FROM users 
+            WHERE spotify_user_id = ?
+        ''', (rec_to,)).fetchone()
+        conn.close()
+        if not friend:
+            friend_avatar = None
+            friend_name = None
+        else:
+            friend_avatar = friend['spotify_avatar_url']
+            friend_name = friend['spotify_display_name']
+        
+
+        song_resp = requests.get(
+            'https://api.spotify.com/v1/tracks/' + song_id,
+            headers={'Authorization': f'Bearer {access_token}'}
+        )
+        if song_resp.status_code == 200:
+            song = song_resp.json()
+            tracks.append({
+                'song_id': song['id'],
+                'title': song['name'],
+                'artist': ', '.join(artist['name'] for artist in song['artists']),
+                'album': song['album']['name'],
+                'track_cover': song['album']['images'][0]['url'] if song['album']['images'] else None,
+                'year': song['album']['release_date'][:4],
+                'recommended_to': rec_to,
+                'recommendation_id': rec_id,
+                'friend_avatar': friend_avatar,
+                'friend_name': friend_name
+            })
+        else:
+            tracks.append({'error': 'spotify_api_error', 'details': song_resp.json()})
+    return jsonify(tracks)
 
 @app.route('/recommend', methods=['POST'])
 @ensure_token  # Ensure the access token is valid before proceeding
@@ -631,24 +709,20 @@ def recommend_song():
     conn = get_db_connection()
 
     # Check if user is friends with the friend_id
-    if not conn.execute("""
-                    SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ?
-                    """,
-                    (user_id, friend_id)).fetchone() and not conn.execute("""
-                    SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ?
-                    """,
-                    (friend_id, user_id)).fetchone():
+    cur = conn.execute("""
+                SELECT EXISTS(
+                SELECT 1 FROM friends
+                WHERE (user_id = ? AND friend_id = ?)
+                    OR (user_id = ? AND friend_id = ?)
+                )
+            """, (user_id, friend_id, friend_id, user_id))
+
+    if not cur.fetchone()[0]:
         conn.close()
         return jsonify({'error': 'Not_Friends_with_user'}), 400
+
     
     song_id = request.json.get('song_id')
-    song_resp = requests.get(
-        'https://api.spotify.com/v1/tracks/' + song_id,
-        headers={'Authorization': f'Bearer {access_token}'}
-    )
-    song = song_resp.json()
-    if song_resp.status_code != 200:
-        return jsonify({'error': 'spotify_api_error', 'details': song}), song_resp.status_code
 
     # Check if recommendation already exists
     existing = conn.execute('''
@@ -672,16 +746,77 @@ def recommend_song():
     return jsonify({
         'message': 'Song successfully recommended!',
         'Song Details': {
-            'song_id': song['id'],
-            'title': song['name'],
-            'artist': ', '.join(artist['name'] for artist in song['artists']),
-            'album_cover': song['album']['images'][0]['url'] if song['album']['images'] else None,
-            'album': song['album']['name'],
-            'year': song['album']['release_date'][:4]
+            'song_id': song_id,
         },
         'recommended_by': user_id,
         'recommended_to': friend_id
         }), 201
+
+@app.route('/like_recommendation', methods=['POST'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def like_recommendation():
+    access_token = session.get('access_token')
+    user_id = session.get('user_id')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 401
+    
+    # Check if the request contains a recommendation_id
+    rec_id = request.json.get('recommendation_id')
+    song_id  = request.json.get('song_id')
+    action   = request.json.get('action', 'like')  # 'like' or 'dislike'
+
+    if not rec_id:
+        return jsonify({'error': 'recommendation_id_required'}), 400
+    if not song_id:
+        return jsonify({'error': 'song_id_required'}), 400
+    if action not in ('like', 'dislike', 'NULL'):
+        return jsonify({'error': 'invalid_action', 'message': "action must be 'like' or 'dislike'"}), 400
+
+    # Convert action to a value for the database
+    if action == 'NULL':
+        val = None
+    else:
+        val = 1 if action == 'like' else 0
+
+    conn = get_db_connection()
+
+    # 2) Verify that recommendation exists and belongs to this user
+    rec = conn.execute('''
+        SELECT 1
+        FROM recommendations
+        WHERE id = ? AND friend_id = ?
+    ''', (rec_id, user_id)).fetchone()
+    if not rec:
+        conn.close()
+        return jsonify({'error': 'not_found', 'message': 'Recommendation not found or not yours'}), 404
+
+    # 3) Verify that the song is part of that recommendation
+    rs = conn.execute('''
+        SELECT 1
+        FROM recommendationSongs
+        WHERE recommendation_id = ? AND song_id = ?
+    ''', (rec_id, song_id)).fetchone()
+    if not rs:
+        conn.close()
+        return jsonify({'error': 'not_found', 'message': 'Song not in that recommendation'}), 404
+
+    # 4) Update the like_dislike flag
+    conn.execute('''
+        UPDATE recommendationSongs
+        SET like_dislike = ?
+        WHERE recommendation_id = ? AND song_id = ?
+    ''', (val, rec_id, song_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        'message': 'Recommendation song updated',
+        'recommendation_id': rec_id,
+        'song_id': song_id,
+        'action': action
+    }), 200
 
 @app.route('/get_song_id', methods=['POST'])
 @ensure_token  # Ensure the access token is valid before proceeding
@@ -710,6 +845,11 @@ def get_song_id():
         if track['name'].lower() == track_name.lower():
             return jsonify({
                 'song_id': track['id'],
+                'title': track['name'],
+                'artist': ', '.join(artist['name'] for artist in track['artists']),
+                'track_cover': album['images'][0]['url'] if album['images'] else None,
+                'album': album['name'],
+                'year': album['release_date'][:4]
             }), 200
     return jsonify({'error': 'track_not_found_in_album'}), 404
 
