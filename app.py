@@ -1,16 +1,46 @@
 from flask import Flask, jsonify, request, session, redirect
 import requests
+from flask_session import Session
 from flask_cors import CORS
 from urllib.parse import urlencode
 import sqlite3
-import os, secrets
+import os, secrets, redis
 import time
+from datetime import timedelta
 from functools import wraps
 
 # Initialize the Flask application
 app = Flask(__name__)
-CORS(app, origins=["https://open.spotify.com", "http://127.0.0.1:3000"], supports_credentials=True)  # Enable CORS for all routes
-app.secret_key = os.getenv("SESSION_SECRET_KEY")
+app.secret_key = os.environ.get("SESSION_SECRET_KEY", os.urandom(24))
+#app.secret_key = os.getenv("SESSION_SECRET_KEY")
+
+# ---------------- Session Configuration ----------------
+app.config.update(
+    # Store session data on the server’s filesystem
+    SESSION_TYPE='filesystem',
+
+    # Make sessions permanent and set their lifetime :contentReference[oaicite:2]{index=2}
+    SESSION_PERMANENT=True,
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=24),
+
+    # Cookie flags to allow third-party use from your extension :contentReference[oaicite:3]{index=3}
+    SESSION_COOKIE_SAMESITE='None',
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+
+    # Give it a custom name so it doesn’t clash with anything else
+    SESSION_COOKIE_NAME='songrec.sid',
+)
+
+# Bind the Session interface to your app
+Session(app)
+
+
+CORS(app, 
+     origins=["https://open.spotify.com", "chrome-extension://ijageeaiiaemphkdojoopbmphopjoipk"], 
+     supports_credentials=True,
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "OPTIONS"])
 
 # Function to establish a connection to the SQLite database
 def get_db_connection():
@@ -210,6 +240,11 @@ def callback():
         )
         resp.raise_for_status()
         tokens = resp.json()
+
+        print(f"Received tokens: {list(tokens.keys())}")
+
+        # Make session permanent to ensure it persists
+        session.permanent = True
         
         # Store tokens in session
         session['access_token'] = tokens['access_token']
@@ -217,6 +252,53 @@ def callback():
         session['expires_in'] = tokens['expires_in']
         session['expires_at'] = time.time() + tokens['expires_in']
         
+        profile_resp = requests.get(
+            "https://api.spotify.com/v1/me",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"}
+        )
+        
+        if profile_resp.status_code == 200:
+            profile = profile_resp.json()
+            session['user_id'] = profile['id']  # Store the user ID in the session
+            
+            print(f"Session after user_id storage: {dict(session)}")
+
+            # Store user in database
+            conn = get_db_connection()
+            conn.execute("""
+            INSERT INTO users (
+                spotify_user_id,
+                spotify_display_name,
+                spotify_email,
+                spotify_avatar_url,
+                access_token,
+                refresh_token,
+                token_expiry
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(spotify_user_id) DO UPDATE SET
+                spotify_display_name = excluded.spotify_display_name,
+                spotify_email        = excluded.spotify_email,
+                spotify_avatar_url   = excluded.spotify_avatar_url,
+                access_token         = excluded.access_token,
+                refresh_token        = excluded.refresh_token,
+                token_expiry         = excluded.token_expiry
+            """, (
+                profile['id'],
+                profile.get('display_name'),
+                profile.get('email'),
+                (profile.get('images') or [{}])[0].get('url'),
+                tokens['access_token'],
+                tokens['refresh_token'],
+                session['expires_at']
+            ))
+            conn.commit()
+            conn.close()
+            
+            print(f"User profile stored: {profile['id']}")
+        else:
+            print(f"Failed to fetch user profile: {profile_resp.status_code}")
+            return jsonify({'error': 'Failed to fetch user profile'}), 400
+
         # Clear any oauth state from session after successful authentication
         session.pop('oauth_state', None)
         session.pop('state_created_at', None)
@@ -301,6 +383,7 @@ def me():
 def logout():
     # Clear the session data
     user_id = session.get('user_id')
+    print(f"Logging out user_id: {user_id}")
     if user_id:
         conn = get_db_connection()
         conn.execute("""
@@ -600,6 +683,9 @@ def debug_session():
         'oauth_state_in_session': session.get('oauth_state'),
         'state_created_at': session.get('state_created_at'),
         'has_access_token': 'access_token' in session,
+        'has_user_id': 'user_id' in session,
+        'user_id': session.get('user_id'),
+        'expires_at': session.get('expires_at'),
         'session_keys': list(session.keys()),
         'session_permanent': session.permanent
     })

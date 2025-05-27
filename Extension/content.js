@@ -332,7 +332,7 @@ function showPopupFriends() {
     const logoutBtn = content.querySelector('#logout-btn');
     logoutBtn.addEventListener('click', async () => {
         try {
-            await fetch('http://127.0.0.1:5000/logout', { method: 'POST' });
+            await fetch('http://127.0.0.1:5000/logout', { method: 'GET' });
             closePopup();
         } catch (error) {
             console.error('Logout error:', error);
