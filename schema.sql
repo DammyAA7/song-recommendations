@@ -37,7 +37,6 @@ CREATE TABLE IF NOT EXISTS recommendationSongs (
     like_dislike BOOLEAN DEFAULT NULL, -- Indicates if the song is liked/disliked
     PRIMARY KEY (recommendation_id, song_id),
     FOREIGN KEY (recommendation_id) REFERENCES recommendations(id) ON DELETE CASCADE,
-    FOREIGN KEY (song_id)          REFERENCES songs(song_id)      ON DELETE CASCADE
 );
 
 

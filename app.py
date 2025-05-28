@@ -933,6 +933,20 @@ def debug_session():
         'session_keys': list(session.keys()),
         'session_permanent': session.permanent
     })
+
+# Initialize the database if it doesn't exist
+def init_db():
+    """Initialize the database with schema.sql"""
+    db_path = 'app.db'
+    
+    if not os.path.exists(db_path):
+        conn = sqlite3.connect(db_path)
+        with open('schema.sql', 'r') as f:
+            conn.executescript(f.read())
+        conn.commit()
+        conn.close()
+        print("Database initialized!")
     
 if __name__ == '__main__':
+    init_db()
     app.run(debug=True)
