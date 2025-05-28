@@ -282,35 +282,37 @@ function showPopupFriends() {
 
   content.innerHTML = `
     <div class="friends-container">
-      <div class="popup-header">
-        <div class="tab-navigation">
-          <button class="tab-btn active" data-tab="friends">Friends</button>
-          <button class="tab-btn" data-tab="sent">Sent</button>
-          <button class="tab-btn" data-tab="received">Received</button>
-        </div>
-      </div>
-      
-      <div class="tab-content" id="friends-tab">
-        <div class="add-friend-section">
-          <div class="add-friend-form">
-            <input type="text" id="friend-input" placeholder="Enter Spotify username URL" class="friend-input">
-            <button id="add-friend-btn" class="spotify-btn-primary">Add Friend</button>
+      <div class="popup-scrollable-content">
+        <div class="popup-header">
+          <div class="tab-navigation">
+            <button class="tab-btn active" data-tab="friends">Friends</button>
+            <button class="tab-btn" data-tab="sent">Sent</button>
+            <button class="tab-btn" data-tab="received">Received</button>
           </div>
         </div>
-        <div class="friends-list" id="friends-list">
-          <div class="loading-message">Loading friends...</div>
-        </div>
-      </div>
 
-      <div class="tab-content hidden" id="sent-tab">
-        <div class="recommendations-list" id="sent-recommendations">
-           <div class="loading-message">Loading sent recommendations...</div>
+        <div class="tab-content" id="friends-tab">
+          <div class="add-friend-section">
+            <div class="add-friend-form">
+              <input type="text" id="friend-input" placeholder="Enter Spotify username URL" class="friend-input">
+              <button id="add-friend-btn" class="spotify-btn-primary">Add Friend</button>
+            </div>
+          </div>
+          <div class="friends-list" id="friends-list">
+            <div class="loading-message">Loading friends...</div>
+          </div>
         </div>
-      </div>
 
-      <div class="tab-content hidden" id="received-tab">
-        <div class="recommendations-list" id="received-recommendations">
-          <div class="loading-message">Loading received recommendations...</div>
+        <div class="tab-content hidden" id="sent-tab">
+          <div class="recommendations-list" id="sent-recommendations">
+             <div class="loading-message">Loading sent recommendations...</div>
+          </div>
+        </div>
+
+        <div class="tab-content hidden" id="received-tab">
+          <div class="recommendations-list" id="received-recommendations">
+            <div class="loading-message">Loading received recommendations...</div>
+          </div>
         </div>
       </div>
       
@@ -371,7 +373,6 @@ function showPopupFriends() {
         }
         // Load sent recommendations when sent tab is clicked
         else if (btn.dataset.tab === "sent") {
-          console.log("Loading sent recommendations...");
           initializeSentRecommendations();
         }
       }
@@ -1189,7 +1190,7 @@ function showPopupFriends() {
               btn.style.background = "#1db954";
 
               showMessage(
-                `Successfully recommended ${currentSong.title} to ${friendName}!`,
+                `Recommended ${currentSong.title} to ${friendName}!`,
                 "success"
               );
             } catch (error) {
@@ -1327,7 +1328,22 @@ function showPopupFriends() {
     // Insert at the top of the friends tab content
     const friendsContainer = content.querySelector("#friends-tab");
     if (friendsContainer) {
+      // Add push-down class to existing content
+      const existingContent = friendsContainer.children;
+      Array.from(existingContent).forEach((child) => {
+        if (!child.classList.contains("message-display")) {
+          child.classList.add("content-push-down");
+        }
+      });
+
       friendsContainer.insertBefore(messageDiv, friendsContainer.firstChild);
+
+      // Remove push-down class after animation completes
+      setTimeout(() => {
+        Array.from(existingContent).forEach((child) => {
+          child.classList.remove("content-push-down");
+        });
+      }, 1000);
     }
 
     // Auto-remove after 3 seconds
@@ -1335,7 +1351,22 @@ function showPopupFriends() {
       if (messageDiv.parentElement) {
         const messageContent = messageDiv.querySelector(".message-content");
         messageContent.classList.add("slide-up");
-        setTimeout(() => messageDiv.remove(), 300);
+
+        // Add push-up animation to content when message is removed
+        const siblingContent = friendsContainer.children;
+        Array.from(siblingContent).forEach((child) => {
+          if (!child.classList.contains("message-display")) {
+            child.classList.add("content-push-up");
+          }
+        });
+
+        setTimeout(() => {
+          messageDiv.remove();
+          // Clean up push-up classes
+          Array.from(siblingContent).forEach((child) => {
+            child.classList.remove("content-push-up");
+          });
+        }, 500);
       }
     }, 3000);
   }
