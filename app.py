@@ -49,7 +49,7 @@ CORS(app,
 def get_db_connection():
     
     # Get database URL from environment variable
-    database_url = "postgresql://postgres.gooepfzjehynozjqzuxl:syvji!Gu7ti55y$@aws-0-eu-west-1.pooler.supabase.com:6543/postgres"
+    database_url = os.environ.get("DATABASE_URL")
     
     if not database_url:
         # Fallback for local development (optional)
@@ -158,9 +158,9 @@ def login():
     
     scope = "user-follow-read user-read-email user-modify-playback-state user-read-playback-state"
     params = {
-        "client_id": os.getenv("SPOTIFY_CLIENT_ID"),
+        "client_id": os.environ.get("SPOTIFY_CLIENT_ID"),
         "response_type": "code",
-        "redirect_uri": os.getenv("SPOTIFY_REDIRECT_URI"),
+        "redirect_uri": os.environ.get("SPOTIFY_REDIRECT_URI"),
         "scope": scope,
         "state": state,
         "show_dialog": "true"
