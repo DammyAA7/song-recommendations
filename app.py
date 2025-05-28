@@ -159,8 +159,9 @@ def login():
     
 
 @app.route('/check_auth')
+@ensure_token  # Ensure the access token is valid before proceeding
 def check_auth():
-    print(f"Checking auth - Session contents: {dict(session)}")  # Debug log
+    
     try:
         if 'access_token' in session:
             # Check if token is expired
@@ -736,15 +737,17 @@ def recommend_song():
 
     # Check if recommendation already exists
     existing = conn.execute('''
-        SELECT *
-        FROM recommendations r
-        JOIN recommendationSongs rs ON r.id = rs.recommendation_id
-        WHERE r.user_id = ? AND r.friend_id = ? AND rs.song_id = ?
-    ''', (user_id, friend_id, song_id)).fetchone()
+        SELECT EXISTS(
+            SELECT 1
+            FROM recommendations r
+            JOIN recommendationSongs rs ON r.id = rs.recommendation_id
+            WHERE r.user_id = ? AND r.friend_id = ? AND rs.song_id = ?
+        )
+    ''', (user_id, friend_id, song_id)).fetchone()[0]
 
     if existing:
         conn.close()
-        return jsonify({'message': 'Song has already been recommended to this user'}), 200
+        return jsonify({'error': 'Song has already been recommended to this user'}), 400
 
     # Insert new recommendation
     conn.execute('INSERT INTO recommendations (user_id, friend_id) VALUES (?, ?)', (user_id, friend_id))

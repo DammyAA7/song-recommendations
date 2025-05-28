@@ -272,7 +272,10 @@ function showAuthError(message) {
 
   content.insertBefore(errorDiv, content.firstChild);
 }
+
 let sentRecommendationsInterval = null;
+let receivedtRecommendationsInterval = null;
+
 function showPopupFriends() {
   const popup = createBasePopup();
   const content = popup.querySelector(".popup-content");
@@ -330,7 +333,7 @@ function showPopupFriends() {
     if (friendInputValue) {
       addFriend(friendInputValue);
     } else {
-      alert("Please enter a Spotify username or profile URL");
+      showMessage("Please enter a Spotify username or profile URL");
     }
   });
 
@@ -351,6 +354,7 @@ function showPopupFriends() {
   tabBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
       cleanupSentRecommendations();
+      cleanupReceivedRecommendations();
       // Remove active class from all tabs
       tabBtns.forEach((b) => b.classList.remove("active"));
       tabContents.forEach((c) => c.classList.add("hidden"));
@@ -363,7 +367,7 @@ function showPopupFriends() {
 
         // Load recommendations when received tab is clicked
         if (btn.dataset.tab === "received") {
-          loadReceivedRecommendations();
+          initializeReceivedRecommendations();
         }
         // Load sent recommendations when sent tab is clicked
         else if (btn.dataset.tab === "sent") {
@@ -533,36 +537,6 @@ function showPopupFriends() {
     }
   }
 
-  function getStatusIndicator(likeDislike) {
-    if (likeDislike === 1) {
-      return `
-            <div class="status-indicator liked">
-                <span class="status-text">Liked</span>
-            </div>
-        `;
-    } else if (likeDislike === 0) {
-      return `
-            <div class="status-indicator disliked">
-                <span class="status-text">Disliked</span>
-            </div>
-        `;
-    } else {
-      return `
-            <div class="status-indicator pending">
-                <span class="status-text">Pending</span>
-            </div>
-        `;
-    }
-  }
-
-  // Function to stop real-time updates
-  function stopSentRecommendationsUpdates() {
-    if (sentRecommendationsInterval) {
-      clearInterval(sentRecommendationsInterval);
-      sentRecommendationsInterval = null;
-    }
-  }
-
   async function loadSentRecommendationsSmooth() {
     const sentContainer = content.querySelector("#sent-recommendations");
 
@@ -633,6 +607,44 @@ function showPopupFriends() {
     }
   }
 
+  function getStatusIndicator(likeDislike) {
+    if (likeDislike === 1) {
+      return `
+            <div class="status-indicator liked">
+                <span class="status-text">Liked</span>
+            </div>
+        `;
+    } else if (likeDislike === 0) {
+      return `
+            <div class="status-indicator disliked">
+                <span class="status-text">Disliked</span>
+            </div>
+        `;
+    } else {
+      return `
+            <div class="status-indicator pending">
+                <span class="status-text">Pending</span>
+            </div>
+        `;
+    }
+  }
+
+  // Function to stop real-time updates
+  function stopSentRecommendationsUpdates() {
+    if (sentRecommendationsInterval) {
+      clearInterval(sentRecommendationsInterval);
+      sentRecommendationsInterval = null;
+    }
+  }
+
+  // Function to stop real-time updates
+  function stopReceivedRecommendationsUpdates() {
+    if (receivedtRecommendationsInterval) {
+      clearInterval(receivedtRecommendationsInterval);
+      receivedtRecommendationsInterval = null;
+    }
+  }
+
   // Function to start smooth real-time updates
   function startSentRecommendationsSmoothUpdates() {
     // Clear any existing interval
@@ -643,11 +655,26 @@ function showPopupFriends() {
     // Initial load
     loadSentRecommendations();
 
-    // Set up smooth polling every 3 seconds
+    // Set up smooth polling every 10 seconds
     sentRecommendationsInterval = setInterval(() => {
-      console.log("Loading sent recommendations smoothly...");
       loadSentRecommendationsSmooth();
-    }, 3000);
+    }, 10000);
+  }
+
+  // Function to start smooth real-time updates
+  function startReceivedRecommendationsSmoothUpdates() {
+    // Clear any existing interval
+    if (receivedtRecommendationsInterval) {
+      clearInterval(receivedtRecommendationsInterval);
+    }
+
+    // Initial load
+    loadReceivedRecommendations();
+
+    // Set up smooth polling every 10 seconds
+    receivedtRecommendationsInterval = setInterval(() => {
+      loadReceivedRecommendationsSmooth();
+    }, 10000);
   }
 
   function initializeSentRecommendations() {
@@ -657,6 +684,15 @@ function showPopupFriends() {
 
   function cleanupSentRecommendations() {
     stopSentRecommendationsUpdates();
+  }
+
+  function initializeReceivedRecommendations() {
+    loadReceivedRecommendations();
+    startReceivedRecommendationsSmoothUpdates();
+  }
+
+  function cleanupReceivedRecommendations() {
+    stopReceivedRecommendationsUpdates();
   }
 
   // Function to load received recommendations
@@ -721,10 +757,14 @@ function showPopupFriends() {
                     <div class="songs-list hidden">
                         ${userRecs
                           .map((rec) => {
-                            const likeActive = rec.like_dislike === 1 ? 'active' : '';
-                            const dislikeActive = rec.like_dislike === 0 ? 'active' : '';
+                            const likeActive =
+                              rec.like_dislike === 1 ? "active" : "";
+                            const dislikeActive =
+                              rec.like_dislike === 0 ? "active" : "";
                             return `
-                            <div class="song-item" data-rec-id="${rec.recommendation_id}" data-song-id="${rec.song_id}">
+                            <div class="song-item" data-rec-id="${
+                              rec.recommendation_id
+                            }" data-song-id="${rec.song_id}">
                                 <div class="song-album-cover">
                                     <img src="${
                                       rec.track_cover ||
@@ -778,6 +818,171 @@ function showPopupFriends() {
                 <p>Error loading recommendations. Please try again later.</p>
             </div>
         `;
+    }
+  }
+
+  async function loadReceivedRecommendationsSmooth() {
+    const receivedContainer = content.querySelector(
+      "#received-recommendations"
+    );
+
+    try {
+      const response = await fetch("http://127.0.0.1:5000/recommendations", {
+        method: "GET",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const recommendations = await response.json();
+
+      // If no recommendations, handle empty state
+      if (recommendations.length === 0) {
+        // Only update if container doesn't already show empty state
+        if (!receivedContainer.querySelector(".no-recommendations-message")) {
+          receivedContainer.innerHTML = `
+          <div class="no-recommendations-message">
+            <p>No recommendations received yet!</p>
+            <p>Ask your friends to send you some music recommendations.</p>
+          </div>
+        `;
+        }
+        return;
+      }
+
+      // Group recommendations by user
+      const groupedRecommendations = recommendations.reduce((acc, rec) => {
+        const userId = rec.friend_name;
+        if (!acc[userId]) {
+          acc[userId] = [];
+        }
+        acc[userId].push(rec);
+        return acc;
+      }, {});
+
+      // Store current expanded states and button states
+      const expandedPersons = new Set();
+      const buttonStates = new Map();
+
+      // Capture current UI state
+      receivedContainer
+        .querySelectorAll(".recommendation-person")
+        .forEach((person) => {
+          const personName = person.dataset.person;
+          const songsList = person.querySelector(".songs-list");
+
+          // Check if this person's recommendations are expanded
+          if (songsList && !songsList.classList.contains("hidden")) {
+            expandedPersons.add(personName);
+          }
+
+          // Store button states for each song
+          person.querySelectorAll(".song-item").forEach((songItem) => {
+            const recId = songItem.dataset.recId;
+            const likeBtn = songItem.querySelector(".like-btn");
+            const dislikeBtn = songItem.querySelector(".dislike-btn");
+
+            buttonStates.set(recId, {
+              liked: likeBtn?.classList.contains("active") || false,
+              disliked: dislikeBtn?.classList.contains("active") || false,
+            });
+          });
+        });
+
+      // Build new HTML
+      let html = "";
+      const noAvatar =
+        "https://media.istockphoto.com/id/945691510/vector/people-icon-silhouettes-illustration-vector.jpg?s=612x612&w=0&k=20&c=chZcclmonc5T002ErDfMZ6KYz01tfHnd-Hzk4EfMJ6k=";
+
+      for (const [userId, userRecs] of Object.entries(groupedRecommendations)) {
+        const userName = userId;
+        const count = userRecs.length;
+        const userAvatar = userRecs[0].friend_avatar || noAvatar;
+        const isExpanded = expandedPersons.has(userName);
+
+        html += `
+        <div class="recommendation-person" data-person="${userName}">
+          <div class="person-header">
+            <div class="friend-avatar">
+              <img src="${userAvatar}" alt="${userName}">
+            </div>
+            <div class="friend-info">
+              <span class="friend-name">${userName}</span>
+              <span class="friend-status">${count} song${
+          count > 1 ? "s" : ""
+        } received</span>
+            </div>
+            <button class="expand-btn">${isExpanded ? "▲" : "▼"}</button>
+          </div>
+          <div class="songs-list ${isExpanded ? "" : "hidden"}">
+            ${userRecs
+              .map((rec) => {
+                // Use stored button states if available, otherwise use database values
+                const storedState = buttonStates.get(
+                  rec.recommendation_id.toString()
+                );
+                let likeActive, dislikeActive;
+
+                if (storedState) {
+                  likeActive = storedState.liked ? "active" : "";
+                  dislikeActive = storedState.disliked ? "active" : "";
+                } else {
+                  likeActive = rec.like_dislike === 1 ? "active" : "";
+                  dislikeActive = rec.like_dislike === 0 ? "active" : "";
+                }
+
+                return `
+                <div class="song-item" data-rec-id="${
+                  rec.recommendation_id
+                }" data-song-id="${rec.song_id}">
+                  <div class="song-album-cover">
+                    <img src="${
+                      rec.track_cover ||
+                      "https://via.placeholder.com/60x60/1db954/white?text=♪"
+                    }" alt="${rec.title}" class="album-cover">
+                  </div>
+                  <div class="song-details">
+                    <div class="song-info">
+                      <span class="song-title">${rec.title}</span>
+                      <span class="song-artist">${rec.artist}</span>
+                    </div>
+                    <div class="song-actions">
+                      <button class="like-btn ${likeActive}" data-action="like" title="Like">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                        </svg>
+                      </button>
+                      <button class="dislike-btn ${dislikeActive}" data-action="dislike" title="Dislike">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
+                        </svg>
+                      </button>
+                      <button class="play-btn" title="Play Now">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                          <polygon points="5,3 19,12 5,21"></polygon>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              `;
+              })
+              .join("")}
+          </div>
+        </div>
+      `;
+      }
+
+      // Update the container
+      receivedContainer.innerHTML = html;
+
+      // Re-setup event listeners
+      setupRecommendationActions();
+    } catch (error) {
+      console.error("Error loading recommendations smoothly:", error);
+      // Don't replace content on error to avoid disrupting user experience
     }
   }
 
@@ -930,7 +1135,7 @@ function showPopupFriends() {
             (friend) => `
                 <div class="friend-item" data-friend="${
                   friend.spotify_user_id
-                }">
+                }" data-displayname="${friend.display_name}">
                     <div class="friend-avatar">
                         <img src="${friend.avatar_url || noAvatar}" alt="${
               friend.display_name || friend.spotify_user_id
@@ -953,6 +1158,7 @@ function showPopupFriends() {
           btn.addEventListener("click", async (e) => {
             const friendItem = e.target.closest(".friend-item");
             const friendId = friendItem.dataset.friend;
+            const friendName = friendItem.dataset.displayname;
 
             // Disable button and show loading state
             btn.innerHTML = "Sending...";
@@ -964,8 +1170,8 @@ function showPopupFriends() {
               const currentSong = await getCurrentlyPlayingSong();
 
               if (!currentSong) {
-                alert(
-                  "No song is currently playing or song information could not be detected. Please make sure a song is playing on Spotify."
+                showMessage(
+                  "No song is currently playing or song information could not be detected. Try reloading the page and try again."
                 );
                 return;
               }
@@ -977,36 +1183,34 @@ function showPopupFriends() {
               );
 
               // Recommend song to friend
-              await recommendSongToFriend(friendId, songData.song_id);
-
+              message = await recommendSongToFriend(friendId, songData.song_id);
               // Show success state
               btn.innerHTML = "Sent";
               btn.style.background = "#1db954";
 
-              alert(
-                `Successfully recommended "${songData.title}" by ${songData.artist} to ${friendId}!`
+              showMessage(
+                `Successfully recommended ${currentSong.title} to ${friendName}!`,
+                "success"
               );
             } catch (error) {
               console.error("Error sending recommendation:", error);
-
-              let errorMessage = "Failed to send recommendation. ";
+              let errorMessage;
               if (
                 error.message.includes("album_id_required") ||
                 error.message.includes("track_name_required")
               ) {
-                errorMessage += "Could not detect the currently playing song.";
+                errorMessage = "Could not detect the currently playing song.";
               } else if (error.message.includes("track_not_found_in_album")) {
-                errorMessage += "Song not found in the album.";
+                errorMessage = "Song not found in the album.";
               } else if (
                 error.message.includes("Song has already been recommended")
               ) {
-                errorMessage +=
+                errorMessage =
                   "You have already recommended this song to this friend.";
               } else {
-                errorMessage += error.message;
+                errorMessage = message;
               }
-
-              alert(errorMessage);
+              showMessage(errorMessage);
 
               btn.innerHTML = "Send";
               btn.style.background = "#1db954";
@@ -1039,7 +1243,7 @@ function showPopupFriends() {
     const username = extractSpotifyUsername(friendInput);
 
     if (!username) {
-      alert("Please enter a valid Spotify username or profile URL");
+      showMessage("Please enter a valid Spotify username or profile URL");
       return;
     }
 
@@ -1065,7 +1269,7 @@ function showPopupFriends() {
         // Success - clear input and reload friends list
         input.value = "";
         await loadFriends();
-        alert("Friend added successfully!");
+        showMessage("Friend added successfully!", "success");
       } else {
         // Handle specific error cases
         let errorMessage = "Failed to add friend";
@@ -1090,16 +1294,50 @@ function showPopupFriends() {
               }`;
             }
         }
-        alert(errorMessage);
+        showMessage(errorMessage);
       }
     } catch (error) {
       console.error("Error adding friend:", error);
-      alert("Network error. Please check your connection and try again.");
+      showMessage("Network error. Please check your connection and try again.");
     } finally {
       // Re-enable button
       addBtn.disabled = false;
       addBtn.textContent = "Add Friend";
     }
+  }
+
+  function showMessage(message, type = "error") {
+    // Remove any existing messages first
+    const existingMessage = content.querySelector(".message-display");
+    if (existingMessage) {
+      const existingContent = existingMessage.querySelector(".message-content");
+      existingContent.classList.add("slide-up");
+      setTimeout(() => existingMessage.remove(), 300);
+    }
+
+    const messageDiv = document.createElement("div");
+    messageDiv.className = "message-display";
+
+    messageDiv.innerHTML = `
+    <div class="message-content ${type}">
+      <span>${message}</span>
+    </div>
+  `;
+
+    // Insert at the top of the friends tab content
+    const friendsContainer = content.querySelector("#friends-tab");
+    if (friendsContainer) {
+      friendsContainer.insertBefore(messageDiv, friendsContainer.firstChild);
+    }
+
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+      if (messageDiv.parentElement) {
+        const messageContent = messageDiv.querySelector(".message-content");
+        messageContent.classList.add("slide-up");
+        setTimeout(() => messageDiv.remove(), 300);
+      }
+    }, 3000);
   }
 
   // Function to extract username from Spotify URL
