@@ -66,7 +66,7 @@ def refresh_access_token():
             return jsonify({'error': 'user_id_not_found'}), 401
         # Fetch the refresh token from the database
         row = conn.execute("""
-            SELECT refresh_token FROM users WHERE spotify_user_id = ?
+            SELECT refresh_token FROM users WHERE spotify_user_id = %s
         """, (user_id,)).fetchone()
         conn.close()
         if not row:
@@ -97,8 +97,8 @@ def refresh_access_token():
     # Update the access token in the database
     conn.execute("""
         UPDATE users
-        SET access_token = ?, refresh_token = ?, token_expiry = ?
-        WHERE spotify_user_id = ?
+        SET access_token = %s, refresh_token = %s, token_expiry = %s
+        WHERE spotify_user_id = %s
     """, (session['access_token'], session['refresh_token'], session['expires_at'], session.get('user_id')))
     conn.commit()
     conn.close()
@@ -124,13 +124,13 @@ def login():
     # Clean up expired states first
     conn.execute("""
         DELETE FROM oauth_states 
-        WHERE created_at < datetime('now', '-5 minutes')
+        WHERE created_at < NOW() - INTERVAL '5 minutes'
     """)
     
     # Insert new state
     conn.execute("""
         INSERT INTO oauth_states (state, created_at) 
-        VALUES (?, datetime('now'))
+        VALUES (%s, NOW())
     """, (state,))
     conn.commit()
     conn.close()
@@ -155,8 +155,6 @@ def login():
         'message': 'Authorization URL generated',
         'state': state
     }), 200
-
-    
 
 @app.route('/check_auth')
 @ensure_token  # Ensure the access token is valid before proceeding
@@ -206,13 +204,13 @@ def callback():
     # Clean up expired states
     conn.execute("""
         DELETE FROM oauth_states 
-        WHERE created_at < datetime('now', '-10 minutes')
+        WHERE created_at < NOW() - INTERVAL '10 minutes'
     """)
     
     # Check if state exists and is valid
     stored_state_row = conn.execute("""
         SELECT state FROM oauth_states 
-        WHERE state = ? AND created_at > datetime('now', '-10 minutes')
+        WHERE state = %s AND created_at > NOW() - INTERVAL '10 minutes'
     """, (state,)).fetchone()
     
     if not stored_state_row:
@@ -224,7 +222,7 @@ def callback():
         }), 400
     
     # State is valid, remove it from database (single use)
-    conn.execute("DELETE FROM oauth_states WHERE state = ?", (state,))
+    conn.execute("DELETE FROM oauth_states WHERE state = %s", (state,))
     conn.commit()
     conn.close()
     
@@ -283,14 +281,14 @@ def callback():
                 access_token,
                 refresh_token,
                 token_expiry
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT(spotify_user_id) DO UPDATE SET
-                spotify_display_name = excluded.spotify_display_name,
-                spotify_email        = excluded.spotify_email,
-                spotify_avatar_url   = excluded.spotify_avatar_url,
-                access_token         = excluded.access_token,
-                refresh_token        = excluded.refresh_token,
-                token_expiry         = excluded.token_expiry
+                spotify_display_name = EXCLUDED.spotify_display_name,
+                spotify_email        = EXCLUDED.spotify_email,
+                spotify_avatar_url   = EXCLUDED.spotify_avatar_url,
+                access_token         = EXCLUDED.access_token,
+                refresh_token        = EXCLUDED.refresh_token,
+                token_expiry         = EXCLUDED.token_expiry
             """, (
                 profile['id'],
                 profile.get('display_name'),
@@ -366,14 +364,14 @@ def me():
         access_token,
         refresh_token,
         token_expiry
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT(spotify_user_id) DO UPDATE SET
-        spotify_display_name = excluded.spotify_display_name,
-        spotify_email        = excluded.spotify_email,
-        spotify_avatar_url   = excluded.spotify_avatar_url,
-        access_token         = excluded.access_token,
-        refresh_token        = excluded.refresh_token,
-        token_expiry         = excluded.token_expiry
+        spotify_display_name = EXCLUDED.spotify_display_name,
+        spotify_email        = EXCLUDED.spotify_email,
+        spotify_avatar_url   = EXCLUDED.spotify_avatar_url,
+        access_token         = EXCLUDED.access_token,
+        refresh_token        = EXCLUDED.refresh_token,
+        token_expiry         = EXCLUDED.token_expiry
     """, (
     profile['id'],
     profile.get('display_name'),
@@ -401,7 +399,7 @@ def logout():
                 access_token = NULL,
                 refresh_token = NULL,
                 token_expiry = NULL
-            WHERE spotify_user_id = ?
+            WHERE spotify_user_id = %s
         """, (user_id,))
         conn.commit()
         conn.close()
@@ -494,10 +492,10 @@ def add_friend():
     conn = get_db_connection()
     # Check if user is already a friend
     if conn.execute("""
-                    SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ?
+                    SELECT 1 FROM friends WHERE user_id = %s AND friend_id = %s
                     """,
                     (user_id, friend_id)).fetchone() or conn.execute("""
-                    SELECT 1 FROM friends WHERE user_id = ? AND friend_id = ?
+                    SELECT 1 FROM friends WHERE user_id = %s AND friend_id = %s
                     """,
                     (friend_id, user_id)).fetchone():
         conn.close()
@@ -509,9 +507,9 @@ def add_friend():
                 spotify_user_id,
         spotify_display_name,
         spotify_avatar_url
-                 ) VALUES (?, ?, ?) ON CONFLICT(spotify_user_id) DO UPDATE SET
-        spotify_display_name = excluded.spotify_display_name,
-        spotify_avatar_url   = excluded.spotify_avatar_url
+                 ) VALUES (%s, %s, %s) ON CONFLICT(spotify_user_id) DO UPDATE SET
+        spotify_display_name = EXCLUDED.spotify_display_name,
+        spotify_avatar_url   = EXCLUDED.spotify_avatar_url
     """, (
         profile['id'],
         profile.get('display_name'),
@@ -520,11 +518,11 @@ def add_friend():
 
     # Create a new entry in the friends table
     conn.execute("""
-    INSERT INTO friends (user_id, friend_id) VALUES (?, ?)
+    INSERT INTO friends (user_id, friend_id) VALUES (%s, %s)
                  """, (user_id, friend_id))
     
     conn.execute("""
-    INSERT INTO friends (user_id, friend_id) VALUES (?, ?)
+    INSERT INTO friends (user_id, friend_id) VALUES (%s, %s)
                  """, (friend_id, user_id))
     conn.commit()
     conn.close()
@@ -554,7 +552,7 @@ def list_friends():
                         SELECT u.spotify_user_id, u.spotify_display_name, u.spotify_avatar_url
                         FROM friends f
                         JOIN users u ON f.friend_id = u.spotify_user_id
-                        WHERE f.user_id = ?
+                        WHERE f.user_id = %s
                         ''', (user_id,)).fetchall()
     conn.close()
     # Convert the result to a list of dictionaries and return as JSON
@@ -588,11 +586,11 @@ def get_user_recommendations():
             u.spotify_display_name AS friend_name,
             u.spotify_avatar_url   AS friend_avatar
         FROM recommendations r
-        JOIN recommendationSongs rs
+        JOIN recommendation_songs rs
           ON rs.recommendation_id = r.id
         JOIN users u
           ON u.spotify_user_id   = r.user_id
-        WHERE r.friend_id = ?
+        WHERE r.friend_id = %s
         ORDER BY r.created_at DESC
     """, (user_id,)).fetchall()
     conn.close()
@@ -656,9 +654,9 @@ def get_sent_recommendations():
           u.spotify_display_name AS friend_name,
           u.spotify_avatar_url   AS friend_avatar
         FROM recommendations      r
-        JOIN recommendationSongs  rs ON rs.recommendation_id = r.id
+        JOIN recommendation_songs  rs ON rs.recommendation_id = r.id
         JOIN users                u  ON u.spotify_user_id   = r.friend_id
-        WHERE r.user_id = ?
+        WHERE r.user_id = %s
         ORDER BY r.created_at DESC
     """, (user_id,)).fetchall()
     conn.close()
@@ -723,8 +721,8 @@ def recommend_song():
     cur = conn.execute("""
                 SELECT EXISTS(
                 SELECT 1 FROM friends
-                WHERE (user_id = ? AND friend_id = ?)
-                    OR (user_id = ? AND friend_id = ?)
+                WHERE (user_id = %s AND friend_id = %s)
+                    OR (user_id = %s AND friend_id = %s)
                 )
             """, (user_id, friend_id, friend_id, user_id))
 
@@ -740,8 +738,8 @@ def recommend_song():
         SELECT EXISTS(
             SELECT 1
             FROM recommendations r
-            JOIN recommendationSongs rs ON r.id = rs.recommendation_id
-            WHERE r.user_id = ? AND r.friend_id = ? AND rs.song_id = ?
+            JOIN recommendation_songs rs ON r.id = rs.recommendation_id
+            WHERE r.user_id = %s AND r.friend_id = %s AND rs.song_id = %s
         )
     ''', (user_id, friend_id, song_id)).fetchone()[0]
 
@@ -750,9 +748,9 @@ def recommend_song():
         return jsonify({'error': 'Song has already been recommended to this user'}), 400
 
     # Insert new recommendation
-    conn.execute('INSERT INTO recommendations (user_id, friend_id) VALUES (?, ?)', (user_id, friend_id))
-    recommendation_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
-    conn.execute('INSERT INTO recommendationSongs (recommendation_id, song_id) VALUES (?, ?)', (recommendation_id, song_id))
+    conn.execute('INSERT INTO recommendations (user_id, friend_id) VALUES (%s, %s)', (user_id, friend_id))
+    recommendation_id = conn.execute('SELECT lastval()').fetchone()[0]
+    conn.execute('INSERT INTO recommendation_songs (recommendation_id, song_id) VALUES (%s, %s)', (recommendation_id, song_id))
     conn.commit()
     conn.close()
 
@@ -799,7 +797,7 @@ def like_recommendation():
     rec = conn.execute('''
         SELECT 1
         FROM recommendations
-        WHERE id = ? AND friend_id = ?
+        WHERE id = %s AND friend_id = %s
     ''', (rec_id, user_id)).fetchone()
     if not rec:
         conn.close()
@@ -808,8 +806,8 @@ def like_recommendation():
     # 3) Verify that the song is part of that recommendation
     rs = conn.execute('''
         SELECT 1
-        FROM recommendationSongs
-        WHERE recommendation_id = ? AND song_id = ?
+        FROM recommendation_songs
+        WHERE recommendation_id = %s AND song_id = %s
     ''', (rec_id, song_id)).fetchone()
     if not rs:
         conn.close()
@@ -817,9 +815,9 @@ def like_recommendation():
 
     # 4) Update the like_dislike flag
     conn.execute('''
-        UPDATE recommendationSongs
-        SET like_dislike = ?
-        WHERE recommendation_id = ? AND song_id = ?
+        UPDATE recommendation_songs
+        SET like_dislike = %s
+        WHERE recommendation_id = %s AND song_id = %s
     ''', (val, rec_id, song_id))
     conn.commit()
     conn.close()
@@ -910,17 +908,7 @@ def get_chrome_id(access_token):
             return d['id']
     # Fallback: no Chrome device found
     return None
-"""
-@app.route('/available_devices', methods=['GET'])
-@ensure_token  # Ensure the access token is valid before proceeding
-def available_devices():
-    access_token = session.get('access_token')
-    if not access_token:
-        return jsonify({'error': 'not_authenticated'}), 401
-    
-    devices = get_available_devices(access_token)
-    return jsonify(devices), 200
-"""
+
 @app.route('/debug_session')
 def debug_session():
     return jsonify({
@@ -933,20 +921,6 @@ def debug_session():
         'session_keys': list(session.keys()),
         'session_permanent': session.permanent
     })
-
-# Initialize the database if it doesn't exist
-def init_db():
-    """Initialize the database with schema.sql"""
-    db_path = 'app.db'
-    
-    if not os.path.exists(db_path):
-        conn = sqlite3.connect(db_path)
-        with open('schema.sql', 'r') as f:
-            conn.executescript(f.read())
-        conn.commit()
-        conn.close()
-        print("Database initialized!")
     
 if __name__ == '__main__':
-    init_db()
     app.run(debug=True)
