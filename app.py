@@ -309,6 +309,7 @@ def callback():
             cursor = conn.cursor()
 
             try:
+                expires_at_datetime = datetime.fromtimestamp(session['expires_at'])
                 cursor.execute("""
                 INSERT INTO users (
                     spotify_user_id,
@@ -325,7 +326,7 @@ def callback():
                     spotify_avatar_url   = EXCLUDED.spotify_avatar_url,
                     access_token         = EXCLUDED.access_token,
                     refresh_token        = EXCLUDED.refresh_token,
-                    token_expiry         = to_timestamp(EXCLUDED.token_expiry)
+                    token_expiry         = EXCLUDED.token_expiry
                 """, (
                     profile['id'],
                     profile.get('display_name'),
@@ -333,7 +334,7 @@ def callback():
                     (profile.get('images') or [{}])[0].get('url'),
                     tokens['access_token'],
                     tokens['refresh_token'],
-                    session['expires_at']
+                    expires_at_datetime
                 ))
                 conn.commit()
                 print(f"User profile stored: {profile['id']}")
