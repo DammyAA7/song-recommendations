@@ -433,10 +433,10 @@
   line-height: 1.2;
 }
 
-.song-time {
+.song-status {
   color: #b3b3b3;
-  font-size: 11px;
-  white-space: nowrap;
+  font-size: 12px;
+  margin-left: 8px;
 }
 
 .popup-footer {
@@ -596,7 +596,7 @@
 .song-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
 }
 

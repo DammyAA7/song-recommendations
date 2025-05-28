@@ -299,7 +299,7 @@ def callback():
             
             print(f"User profile stored: {profile['id']}")
         else:
-            print(f"Failed to fetch user profile: {profile_resp.status_code}")
+            print(f"Failed to fetch user profile: {profile_resp}")
             return jsonify({'error': 'Failed to fetch user profile'}), 400
 
         # Clear any oauth state from session after successful authentication
@@ -636,37 +636,30 @@ def get_sent_recommendations():
 
     conn = get_db_connection()
     # Retrieve recommendations sent by the user
-    recommendations = conn.execute('''
-                                SELECT rs.song_id, rs.recommendation_id, r.friend_id AS recommended_to
-                                FROM recommendations r
-                                JOIN recommendationSongs rs 
-                                   ON r.id = rs.recommendation_id
-                                WHERE r.user_id = ?
-                                   ORDER BY r.created_at DESC
-                            ''', (user_id,)).fetchall()
+    rows = conn.execute("""
+        SELECT rs.song_id,
+               rs.recommendation_id,
+               rs.like_dislike,
+               r.friend_id         AS recommended_to,
+               u.spotify_display_name AS friend_name,
+               u.spotify_avatar_url   AS friend_avatar
+        FROM   recommendations      r
+        JOIN   recommendationSongs  rs ON r.id          = rs.recommendation_id
+        JOIN   users                u  ON u.spotify_user_id = r.friend_id
+        WHERE  r.user_id = ?
+        ORDER  BY r.created_at DESC
+    """, (user_id,)).fetchall()
     conn.close()
     # Convert the result to a list of dictionaries and return as JSON
     tracks = []
-    for row in recommendations: 
+    for row in rows: 
         song_id = row['song_id'] 
         rec_id = row['recommendation_id']
         rec_to = row['recommended_to']
-
-        conn = get_db_connection()
-        friend = conn.execute('''
-            SELECT spotify_display_name, spotify_avatar_url 
-            FROM users 
-            WHERE spotify_user_id = ?
-        ''', (rec_to,)).fetchone()
-        conn.close()
-        if not friend:
-            friend_avatar = None
-            friend_name = None
-        else:
-            friend_avatar = friend['spotify_avatar_url']
-            friend_name = friend['spotify_display_name']
+        like_dislike = row['like_dislike']
+        friend_avatar = row['friend_avatar']
+        friend_name = row['friend_name']
         
-
         song_resp = requests.get(
             'https://api.spotify.com/v1/tracks/' + song_id,
             headers={'Authorization': f'Bearer {access_token}'}
@@ -677,13 +670,12 @@ def get_sent_recommendations():
                 'song_id': song['id'],
                 'title': song['name'],
                 'artist': ', '.join(artist['name'] for artist in song['artists']),
-                'album': song['album']['name'],
                 'track_cover': song['album']['images'][0]['url'] if song['album']['images'] else None,
-                'year': song['album']['release_date'][:4],
                 'recommended_to': rec_to,
                 'recommendation_id': rec_id,
                 'friend_avatar': friend_avatar,
-                'friend_name': friend_name
+                'friend_name': friend_name,
+                'like_dislike': like_dislike
             })
         else:
             tracks.append({'error': 'spotify_api_error', 'details': song_resp.json()})
@@ -852,6 +844,31 @@ def get_song_id():
                 'year': album['release_date'][:4]
             }), 200
     return jsonify({'error': 'track_not_found_in_album'}), 404
+
+@app.route('/play_song', methods=['POST'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def play_song():
+    access_token = session.get('access_token')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    
+    song_id = request.json.get('song_id')
+    if not song_id:
+        return jsonify({'error': 'song_id_required'}), 400
+    
+    # Use the Spotify Web API to play the song
+    resp = requests.put(
+        'https://api.spotify.com/v1/me/player/play',
+        headers={'Authorization': f'Bearer {access_token}'},
+        json={
+            'uris': [f'spotify:track:{song_id}']
+        }
+    )
+    
+    if resp.status_code == 204:
+        return jsonify({'message': 'Song is now playing'}), 200
+    else:
+        return jsonify({'error': 'spotify_api_error', 'details': resp.json()}), resp.status_code
 
 @app.route('/debug_session')
 def debug_session():

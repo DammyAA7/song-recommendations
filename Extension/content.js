@@ -366,6 +366,11 @@ function showPopupFriends() {
                 return acc;
             }, {});
 
+            const statusLabel = (val) => (
+                val === 1  ? 'Liked'     :
+                val === 0  ? 'Disliked'  : 'Pending'
+            );
+
             let html = '';
             for (const [friendName, friendRecs] of Object.entries(groupedRecommendations)) {
                 const count = friendRecs.length;
@@ -396,7 +401,7 @@ function showPopupFriends() {
                                             <span class="song-artist">${rec.artist}</span>
                                         </div>
                                         <div class="song-actions">
-                                            <span class="song-time">Sent</span>
+                                            <span class="song-status">${statusLabel(rec.like_dislike)}</span>
                                         </div>
                                     </div>
                                 </div>
