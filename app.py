@@ -7,9 +7,10 @@ import psycopg2
 from psycopg2.extras import DictCursor
 import os, secrets
 import time
-from datetime import timedelta
+from datetime import timedelta, datetime
 from functools import wraps
 from itertools import islice
+
 
 # Initialize the Flask application
 app = Flask(__name__)
@@ -306,7 +307,7 @@ def callback():
             # Store user in database
             conn = get_db_connection()
             cursor = conn.cursor()
-            
+
             try:
                 cursor.execute("""
                 INSERT INTO users (
@@ -324,7 +325,7 @@ def callback():
                     spotify_avatar_url   = EXCLUDED.spotify_avatar_url,
                     access_token         = EXCLUDED.access_token,
                     refresh_token        = EXCLUDED.refresh_token,
-                    token_expiry         = EXCLUDED.token_expiry
+                    token_expiry         = to_timestamp(EXCLUDED.token_expiry)
                 """, (
                     profile['id'],
                     profile.get('display_name'),
