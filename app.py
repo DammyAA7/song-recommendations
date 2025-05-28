@@ -582,6 +582,7 @@ def get_user_recommendations():
         SELECT
             rs.song_id,
             rs.recommendation_id,
+            rs.like_dislike,
             r.user_id          AS recommended_by,
             u.spotify_display_name AS friend_name,
             u.spotify_avatar_url   AS friend_avatar
@@ -629,7 +630,8 @@ def get_user_recommendations():
             'recommendation_id': row['recommendation_id'],
             'recommended_by'   : row['recommended_by'],
             'friend_name'      : row['friend_name'],
-            'friend_avatar'    : row['friend_avatar']
+            'friend_avatar'    : row['friend_avatar'],
+            'like_dislike'     : row['like_dislike']  # 1 = like, 0 = dislike, None = pending
         })
 
     return jsonify(output)

@@ -271,29 +271,6 @@
   object-fit: cover;
 }
 
-.status-indicator {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid #121212;
-}
-
-.status-indicator.online {
-  background: #1db954;
-}
-
-.status-indicator.listening {
-  background: #1db954;
-  animation: pulse 2s infinite;
-}
-
-.status-indicator.offline {
-  background: #535353;
-}
-
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
@@ -434,9 +411,38 @@
 }
 
 .song-status {
-  color: #b3b3b3;
+  display: flex;
+  align-items: center;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 12px;
   font-size: 12px;
-  margin-left: 8px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.status-indicator.liked {
+  background-color: #1db954;
+  color: white;
+}
+
+.status-indicator.disliked {
+  background-color: #e22134;
+  color: white;
+}
+
+.status-indicator.pending {
+  background-color: #ffa500;
+  color: white;
+}
+
+.status-text {
+  font-size: 11px;
 }
 
 .popup-footer {
@@ -528,6 +534,16 @@
 }
 
 /* Recommendation Song Item Styles */
+.songs-list {
+  background: #0f0f0f;
+  border-top: 1px solid #282828;
+}
+
+.songs-list.hidden {
+  display: none;
+}
+
+
 .song-item {
   display: flex;
   align-items: center;
@@ -551,8 +567,8 @@
 }
 
 .album-cover {
-  width: 60px;
-  height: 60px;
+  width: 50px;
+  height: 50px;
   border-radius: 8px;
   object-fit: cover;
   background: #282828;
@@ -561,10 +577,10 @@
 /* Song Details Container */
 .song-details {
   display: flex;
+  flex: 1;
   align-items: center;
   justify-content: space-between;
-  flex: 1;
-  gap: 12px;
+  min-width: 0; /* Allows text to shrink */
 }
 
 .song-info {
@@ -572,6 +588,7 @@
   flex-direction: column;
   flex: 1;
   min-width: 0; /* Allow text truncation */
+  margin-right: 12px;
 }
 
 .song-title {
