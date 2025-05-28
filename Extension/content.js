@@ -451,7 +451,7 @@ function showPopupFriends() {
 
             // Group recommendations by user
             const groupedRecommendations = recommendations.reduce((acc, rec) => {
-                const userId = rec.recommended_by;
+                const userId = rec.friend_name;
                 if (!acc[userId]) {
                     acc[userId] = [];
                 }
@@ -614,10 +614,32 @@ function showPopupFriends() {
             });
             
             // Play button handler (placeholder - doesn't do anything as requested)
-            playBtn.addEventListener('click', (e) => {
+            playBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 // Button doesn't do anything as requested
                 console.log('Play button clicked for song:', songId);
+                try {
+                    const reponse = await fetch('http://127.0.1:5000/play_song', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        song_id: songId
+                        }
+                    )
+                });
+                if (response.ok) {
+                        const data = await response.json();
+                        console.log('Song played successfully:', data);
+                    } else {
+                        console.error('Failed to play song:', response.statusText);
+                    }
+                } catch (error) {
+                    console.error('Error playing song:', error);
+                }
+                
             });
         });
     }

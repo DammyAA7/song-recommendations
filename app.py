@@ -8,11 +8,11 @@ import os, secrets, redis
 import time
 from datetime import timedelta
 from functools import wraps
+from itertools import islice
 
 # Initialize the Flask application
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET_KEY", os.urandom(24))
-#app.secret_key = os.getenv("SESSION_SECRET_KEY")
 
 # ---------------- Session Configuration ----------------
 
@@ -50,6 +50,11 @@ def get_db_connection():
     conn = sqlite3.connect('catalog.db')
     conn.row_factory = sqlite3.Row  # This allows us to access columns by name
     return conn
+
+# Yield chunks of a specified size from an iterable
+def chunked(iterable, size):
+    it = iter(iterable)
+    return iter(lambda: list(islice(it, size)), [])
 
 def refresh_access_token():
     refresh_token = session.get('refresh_token')
@@ -132,7 +137,7 @@ def login():
 
     print(f"Generated and stored state in DB: {state}")
     
-    scope = "user-follow-read user-read-email"
+    scope = "user-follow-read user-read-email user-modify-playback-state user-read-playback-state"
     params = {
         "client_id": os.getenv("SPOTIFY_CLIENT_ID"),
         "response_type": "code",
@@ -381,7 +386,6 @@ def me():
     conn.close()
     return jsonify(profile)
 
-
 @app.route('/logout')
 def logout():
     # Clear the session data
@@ -563,123 +567,135 @@ def list_friends():
 def index():
     return 'Welcome to the Song Recommendation API!'
 
-    
 # Define a route to get user recommendations
 @app.route('/recommendations', methods=['GET'])
-@ensure_token  # Ensure the access token is valid before proceeding
+@ensure_token
 def get_user_recommendations():
     access_token = session.get('access_token')
     user_id      = session.get('user_id')
-    #user_id = "0stwt8dz3gqug7j3zdvnoe26s"  # For testing purposes, hardcoded user_id
     if not access_token or not user_id:
         return jsonify({'error': 'not_authenticated'}), 401
 
-    conn = get_db_connection()  # Establish a database connection
-    # Execute a SQL query to retrieve song details for the given user_id
-    recommendations = conn.execute('''
-                                SELECT rs.song_id, rs.recommendation_id, r.user_id As recommended_by
-                                FROM recommendations r
-                                JOIN recommendationSongs rs 
-                                   ON r.id = rs.recommendation_id
-                                WHERE r.friend_id = ?
-                                   ORDER BY r.created_at DESC
-                            ''', (user_id,)).fetchall()
-    conn.close()  # Close the database connection
-    # Convert the result to a list of dictionaries and return as JSON
-    tracks = []
+    # 1) Single DB query to get everything we need
+    conn = get_db_connection()
+    rows = conn.execute("""
+        SELECT
+            rs.song_id,
+            rs.recommendation_id,
+            r.user_id          AS recommended_by,
+            u.spotify_display_name AS friend_name,
+            u.spotify_avatar_url   AS friend_avatar
+        FROM recommendations r
+        JOIN recommendationSongs rs
+          ON rs.recommendation_id = r.id
+        JOIN users u
+          ON u.spotify_user_id   = r.user_id
+        WHERE r.friend_id = ?
+        ORDER BY r.created_at DESC
+    """, (user_id,)).fetchall()
+    conn.close()
 
-    for row in recommendations:
-        song_id = row['song_id'] 
-        rec_id = row['recommendation_id']
-        rec_by = row['recommended_by']
-
-        conn = get_db_connection()
-        friend_avatar = conn.execute('''
-            SELECT spotify_avatar_url 
-            FROM users 
-            WHERE spotify_user_id = ?
-        ''', (rec_by,)).fetchone()
-        conn.close()
-        if not friend_avatar:
-            friend_avatar = None
-        else:
-            friend_avatar = friend_avatar['spotify_avatar_url']
-
-        song_resp = requests.get(
-            'https://api.spotify.com/v1/tracks/' + song_id,
-            headers={'Authorization': f'Bearer {access_token}'}
+    # 2) Batch‐fetch all Spotify tracks
+    headers = {'Authorization': f'Bearer {access_token}'}
+    all_ids = [row['song_id'] for row in rows]
+    track_map = {}
+    for batch in chunked(all_ids, 50):
+        resp = requests.get(
+            'https://api.spotify.com/v1/tracks',
+            params={'ids': ','.join(batch)},
+            headers=headers
         )
-        if song_resp.status_code == 200:
-            song = song_resp.json()
-            tracks.append({
-                'song_id': song['id'],
-                'title': song['name'],
-                'artist': ', '.join(artist['name'] for artist in song['artists']),
-                'album': song['album']['name'],
-                'track_cover': song['album']['images'][0]['url'] if song['album']['images'] else None,
-                'year': song['album']['release_date'][:4],
-                'recommended_by': rec_by,
-                'recommendation_id': rec_id,
-                'friend_avatar': friend_avatar
-            })
-        else:
-            tracks.append({'error': 'spotify_api_error', 'details': song_resp.json()})
-    return jsonify(tracks)
+        resp.raise_for_status()
+        for track in resp.json()['tracks']:
+            track_map[track['id']] = track
+
+    # 3) Build the response
+    output = []
+    for row in rows:
+        tid = row['song_id']
+        track = track_map.get(tid)
+        if not track:
+            output.append({'error': 'spotify_api_error', 'song_id': tid})
+            continue
+
+        output.append({
+            'song_id'          : tid,
+            'title'            : track['name'],
+            'artist'           : ', '.join(a['name'] for a in track['artists']),
+            'album'            : track['album']['name'],
+            'track_cover'      : (track['album']['images'][0]['url']
+                                  if track['album']['images'] else None),
+            'year'             : track['album']['release_date'][:4],
+            'recommendation_id': row['recommendation_id'],
+            'recommended_by'   : row['recommended_by'],
+            'friend_name'      : row['friend_name'],
+            'friend_avatar'    : row['friend_avatar']
+        })
+
+    return jsonify(output)
 
 @app.route('/sent_recommendations', methods=['GET'])
-@ensure_token  # Ensure the access token is valid before proceeding
+@ensure_token
 def get_sent_recommendations():
     access_token = session.get('access_token')
     user_id      = session.get('user_id')
     if not access_token or not user_id:
         return jsonify({'error': 'not_authenticated'}), 401
 
+    # 1) Single DB query
     conn = get_db_connection()
-    # Retrieve recommendations sent by the user
     rows = conn.execute("""
-        SELECT rs.song_id,
-               rs.recommendation_id,
-               rs.like_dislike,
-               r.friend_id         AS recommended_to,
-               u.spotify_display_name AS friend_name,
-               u.spotify_avatar_url   AS friend_avatar
-        FROM   recommendations      r
-        JOIN   recommendationSongs  rs ON r.id          = rs.recommendation_id
-        JOIN   users                u  ON u.spotify_user_id = r.friend_id
-        WHERE  r.user_id = ?
-        ORDER  BY r.created_at DESC
+        SELECT
+          rs.song_id,
+          rs.recommendation_id,
+          rs.like_dislike,
+          r.friend_id           AS recommended_to,
+          u.spotify_display_name AS friend_name,
+          u.spotify_avatar_url   AS friend_avatar
+        FROM recommendations      r
+        JOIN recommendationSongs  rs ON rs.recommendation_id = r.id
+        JOIN users                u  ON u.spotify_user_id   = r.friend_id
+        WHERE r.user_id = ?
+        ORDER BY r.created_at DESC
     """, (user_id,)).fetchall()
     conn.close()
-    # Convert the result to a list of dictionaries and return as JSON
-    tracks = []
-    for row in rows: 
-        song_id = row['song_id'] 
-        rec_id = row['recommendation_id']
-        rec_to = row['recommended_to']
-        like_dislike = row['like_dislike']
-        friend_avatar = row['friend_avatar']
-        friend_name = row['friend_name']
-        
-        song_resp = requests.get(
-            'https://api.spotify.com/v1/tracks/' + song_id,
-            headers={'Authorization': f'Bearer {access_token}'}
+
+    # 2) Batch-fetch tracks
+    headers = {'Authorization': f'Bearer {access_token}'}
+    track_ids = [row['song_id'] for row in rows]
+    track_map = {}
+    for batch in chunked(track_ids, 50):
+        resp = requests.get(
+            'https://api.spotify.com/v1/tracks',
+            params={'ids': ','.join(batch)},
+            headers=headers
         )
-        if song_resp.status_code == 200:
-            song = song_resp.json()
-            tracks.append({
-                'song_id': song['id'],
-                'title': song['name'],
-                'artist': ', '.join(artist['name'] for artist in song['artists']),
-                'track_cover': song['album']['images'][0]['url'] if song['album']['images'] else None,
-                'recommended_to': rec_to,
-                'recommendation_id': rec_id,
-                'friend_avatar': friend_avatar,
-                'friend_name': friend_name,
-                'like_dislike': like_dislike
-            })
-        else:
-            tracks.append({'error': 'spotify_api_error', 'details': song_resp.json()})
-    return jsonify(tracks)
+        resp.raise_for_status()
+        for t in resp.json()['tracks']:
+            track_map[t['id']] = t
+
+    # 3) Build response
+    out = []
+    for row in rows:
+        tid = row['song_id']
+        track = track_map.get(tid)
+        if not track:
+            out.append({'error': 'spotify_api_error', 'song_id': tid})
+            continue
+
+        out.append({
+            'song_id'           : tid,
+            'title'             : track['name'],
+            'artist'            : ', '.join(a['name'] for a in track['artists']),
+            'track_cover'       : (track['album']['images'][0]['url']
+                                   if track['album']['images'] else None),
+            'recommendation_id' : row['recommendation_id'],
+            'recommended_to'    : row['recommended_to'],
+            'friend_name'       : row['friend_name'],
+            'friend_avatar'     : row['friend_avatar'],
+            'like_dislike'      : row['like_dislike']   # 1 = like, 0 = dislike, None = pending
+        })
+    return jsonify(out)
 
 @app.route('/recommend', methods=['POST'])
 @ensure_token  # Ensure the access token is valid before proceeding
@@ -856,9 +872,15 @@ def play_song():
     if not song_id:
         return jsonify({'error': 'song_id_required'}), 400
     
+    playback_state = requests.get(
+        'https://api.spotify.com/v1/me/player',
+        headers={'Authorization': f'Bearer {access_token}'}
+    )
+    device_id = playback_state.json().get('device', {}).get('id') if playback_state.status_code == 200 else ''
+    print("Device ID:", device_id)
     # Use the Spotify Web API to play the song
     resp = requests.put(
-        'https://api.spotify.com/v1/me/player/play',
+        'https://api.spotify.com/v1/me/player/play?device_id=' + device_id,
         headers={'Authorization': f'Bearer {access_token}'},
         json={
             'uris': [f'spotify:track:{song_id}']
