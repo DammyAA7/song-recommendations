@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, session
 import requests
 from flask_session import Session
 from flask_cors import CORS
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode
 import psycopg2
 from psycopg2.extras import DictCursor
 import os, secrets
@@ -304,6 +304,9 @@ def callback():
             print(f"Session after user_id storage: {dict(session)}")
 
             # Store user in database
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
             try:
                 cursor.execute("""
                 INSERT INTO users (

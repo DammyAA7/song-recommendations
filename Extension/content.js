@@ -67,7 +67,7 @@ async function handleRecommendClick() {
     button.disabled = true;
 
     // Check authentication
-    const authResponse = await fetch("http://127.0.0.1:5000/check_auth", {
+    const authResponse = await fetch("https://recspot-e6585868d70b.herokuapp.com/check_auth", {
       method: "GET",
       credentials: "include",
     });
@@ -143,7 +143,7 @@ async function handleAuthFlow() {
     // First, let's check if we have any existing session
     console.log("Checking existing session...");
 
-    const response = await fetch("http://127.0.0.1:5000/login", {
+    const response = await fetch("https://recspot-e6585868d70b.herokuapp.com/login", {
       method: "GET",
       credentials: "include",
       headers: {
@@ -399,7 +399,7 @@ function showPopupFriends() {
   const debugBtn = content.querySelector("#debug-friends-btn");
   debugBtn.addEventListener("click", async () => {
     try {
-      const response = await fetch("http://127.0.0.1:5000/debug_session", {
+      const response = await fetch("https://recspot-e6585868d70b.herokuapp.com/debug_session", {
         credentials: "include",
       });
       const data = await response.json();
@@ -415,7 +415,7 @@ function showPopupFriends() {
   const logoutBtn = content.querySelector("#logout-btn");
   logoutBtn.addEventListener("click", async () => {
     try {
-      await fetch("http://127.0.0.1:5000/logout", {
+      await fetch("https://recspot-e6585868d70b.herokuapp.com/logout", {
         method: "GET",
         credentials: "include",
       });
@@ -432,7 +432,7 @@ function showPopupFriends() {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:5000/sent_recommendations",
+        "https://recspot-e6585868d70b.herokuapp.com/sent_recommendations",
         {
           method: "GET",
           credentials: "include",
@@ -543,7 +543,7 @@ function showPopupFriends() {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:5000/sent_recommendations",
+        "https://recspot-e6585868d70b.herokuapp.com/sent_recommendations",
         {
           method: "GET",
           credentials: "include",
@@ -703,7 +703,7 @@ function showPopupFriends() {
     );
 
     try {
-      const response = await fetch("http://127.0.0.1:5000/recommendations", {
+      const response = await fetch("https://recspot-e6585868d70b.herokuapp.com/recommendations", {
         method: "GET",
         credentials: "include",
       });
@@ -828,7 +828,7 @@ function showPopupFriends() {
     );
 
     try {
-      const response = await fetch("http://127.0.0.1:5000/recommendations", {
+      const response = await fetch("https://recspot-e6585868d70b.herokuapp.com/recommendations", {
         method: "GET",
         credentials: "include",
       });
@@ -1007,7 +1007,7 @@ function showPopupFriends() {
 
         try {
           const response = await fetch(
-            "http://127.0.0.1:5000/like_recommendation",
+            "https://recspot-e6585868d70b.herokuapp.com/like_recommendation",
             {
               method: "POST",
               headers: {
@@ -1047,7 +1047,7 @@ function showPopupFriends() {
 
         try {
           const response = await fetch(
-            "http://127.0.0.1:5000/like_recommendation",
+            "https://recspot-e6585868d70b.herokuapp.com/like_recommendation",
             {
               method: "POST",
               headers: {
@@ -1112,7 +1112,7 @@ function showPopupFriends() {
     const friendsList = content.querySelector("#friends-list");
 
     try {
-      const response = await fetch("http://127.0.0.1:5000/list_friends", {
+      const response = await fetch("https://recspot-e6585868d70b.herokuapp.com/list_friends", {
         credentials: "include",
       });
 
@@ -1253,7 +1253,7 @@ function showPopupFriends() {
     addBtn.textContent = "Adding...";
 
     try {
-      const response = await fetch("http://127.0.0.1:5000/add_friend", {
+      const response = await fetch("https://recspot-e6585868d70b.herokuapp.com/add_friend", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1430,7 +1430,7 @@ function showPopupFriends() {
 
   async function getSongId(albumId, trackName) {
     try {
-      const response = await fetch("http://127.0.0.1:5000/get_song_id", {
+      const response = await fetch("https://recspot-e6585868d70b.herokuapp.com/get_song_id", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1455,7 +1455,7 @@ function showPopupFriends() {
 
   async function recommendSongToFriend(friendId, songId) {
     try {
-      const response = await fetch("http://127.0.0.1:5000/recommend", {
+      const response = await fetch("https://recspot-e6585868d70b.herokuapp.com/recommend", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1513,7 +1513,7 @@ function showPopupAuth() {
   const debugBtn = content.querySelector("#debug-session-btn");
   debugBtn.addEventListener("click", async () => {
     try {
-      const response = await fetch("http://127.0.0.1:5000/debug_session", {
+      const response = await fetch("https://recspot-e6585868d70b.herokuapp.com/debug_session", {
         credentials: "include",
       });
       const data = await response.json();
@@ -1530,7 +1530,7 @@ function showPopupAuth() {
 async function checkAuthStatus() {
   try {
     console.log("Checking auth status...");
-    const response = await fetch("http://127.0.0.1:5000/check_auth", {
+    const response = await fetch("https://recspot-e6585868d70b.herokuapp.com/check_auth", {
       method: "GET",
       credentials: "include",
     });
