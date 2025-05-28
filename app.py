@@ -872,11 +872,9 @@ def play_song():
     if not song_id:
         return jsonify({'error': 'song_id_required'}), 400
     
-    playback_state = requests.get(
-        'https://api.spotify.com/v1/me/player',
-        headers={'Authorization': f'Bearer {access_token}'}
-    )
-    device_id = playback_state.json().get('device', {}).get('id') if playback_state.status_code == 200 else ''
+    device_id = get_chrome_id(access_token)
+    if not device_id:
+        return jsonify({'error': 'no_active_device_found'}), 404
     print("Device ID:", device_id)
     # Use the Spotify Web API to play the song
     resp = requests.put(
@@ -886,12 +884,38 @@ def play_song():
             'uris': [f'spotify:track:{song_id}']
         }
     )
-    
     if resp.status_code == 204:
-        return jsonify({'message': 'Song is now playing'}), 200
+        return jsonify({'message': 'Song is now playing', 'chrome_device_id': device_id}), 200
     else:
         return jsonify({'error': 'spotify_api_error', 'details': resp.json()}), resp.status_code
 
+
+def get_chrome_id(access_token):
+    resp = requests.get(
+        'https://api.spotify.com/v1/me/player/devices',
+        headers={'Authorization': f'Bearer {access_token}'}
+    )
+    if resp.status_code != 200:
+        return []
+    devices = resp.json().get('devices', [])
+    # Look for “Web Player (Chrome)” or any name containing “Chrome”
+    for d in devices:
+        name = d.get('name', '')
+        if 'Chrome' in name:
+            return d['id']
+    # Fallback: no Chrome device found
+    return None
+"""
+@app.route('/available_devices', methods=['GET'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def available_devices():
+    access_token = session.get('access_token')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    
+    devices = get_available_devices(access_token)
+    return jsonify(devices), 200
+"""
 @app.route('/debug_session')
 def debug_session():
     return jsonify({

@@ -619,7 +619,7 @@ function showPopupFriends() {
                 // Button doesn't do anything as requested
                 console.log('Play button clicked for song:', songId);
                 try {
-                    const reponse = await fetch('http://127.0.1:5000/play_song', {
+                    const response = await fetch('http://127.0.1:5000/play_song', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1059,7 +1059,6 @@ async function recommendSongToFriend(friendId, songId) {
         throw error;
     }
 }
-
 
 async function checkAuthStatus() {
     try {
