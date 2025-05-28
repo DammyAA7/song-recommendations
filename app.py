@@ -1,10 +1,11 @@
-from flask import Flask, jsonify, request, session, redirect
+from flask import Flask, jsonify, request, session
 import requests
 from flask_session import Session
 from flask_cors import CORS
-from urllib.parse import urlencode
-import sqlite3
-import os, secrets, redis
+from urllib.parse import urlencode, urlparse
+import psycopg2
+from psycopg2.extras import DictCursor
+import os, secrets
 import time
 from datetime import timedelta
 from functools import wraps
@@ -12,7 +13,7 @@ from itertools import islice
 
 # Initialize the Flask application
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET_KEY", os.urandom(24))
+app.secret_key = os.environ.get("SESSION_SECRET_KEY", 'dev-key-change-in-production')
 
 # ---------------- Session Configuration ----------------
 
@@ -38,17 +39,24 @@ app.config.update(
 
 Session(app)
 
-
 CORS(app, 
      origins=["https://open.spotify.com", "chrome-extension://ijageeaiiaemphkdojoopbmphopjoipk"], 
      supports_credentials=True,
      allow_headers=["Content-Type", "Authorization"],
      methods=["GET", "POST", "OPTIONS", "DELETE"])
 
-# Function to establish a connection to the SQLite database
+# Function to establish a connection to the Postgres database
 def get_db_connection():
-    conn = sqlite3.connect('catalog.db')
-    conn.row_factory = sqlite3.Row  # This allows us to access columns by name
+    
+    # Get database URL from environment variable
+    database_url = os.environ.get('DATABASE_URL')
+    
+    if not database_url:
+        # Fallback for local development (optional)
+        database_url = "postgresql://postgres:your_local_password@localhost:5432/your_local_db"
+    
+    conn = psycopg2.connect(database_url)
+    conn.cursor_factory = DictCursor
     return conn
 
 # Yield chunks of a specified size from an iterable
@@ -923,4 +931,5 @@ def debug_session():
     })
     
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
