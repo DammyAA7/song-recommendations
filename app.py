@@ -49,7 +49,7 @@ CORS(app,
 def get_db_connection():
     
     # Get database URL from environment variable
-    database_url = os.environ.get('DATABASE_URL')
+    database_url = "postgresql://postgres.gooepfzjehynozjqzuxl:syvji!Gu7ti55y$@aws-0-eu-west-1.pooler.supabase.com:6543/postgres"
     
     if not database_url:
         # Fallback for local development (optional)
@@ -129,21 +129,32 @@ def login():
     
     # Store state in database with expiration
     conn = get_db_connection()
-    # Clean up expired states first
-    conn.execute("""
-        DELETE FROM oauth_states 
-        WHERE created_at < NOW() - INTERVAL '5 minutes'
-    """)
+    cursor = conn.cursor()
     
-    # Insert new state
-    conn.execute("""
-        INSERT INTO oauth_states (state, created_at) 
-        VALUES (%s, NOW())
-    """, (state,))
-    conn.commit()
-    conn.close()
-
-    print(f"Generated and stored state in DB: {state}")
+    try:
+        # Clean up expired states first
+        cursor.execute("""
+            DELETE FROM oauth_states 
+            WHERE created_at < NOW() - INTERVAL '5 minutes'
+        """)
+        
+        # Insert new state
+        cursor.execute("""
+            INSERT INTO oauth_states (state, created_at) 
+            VALUES (%s, NOW())
+        """, (state,))
+        
+        conn.commit()
+        print(f"Generated and stored state in DB: {state}")
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Database error in login: {e}")
+        return jsonify({'error': 'Database error during login'}), 500
+    
+    finally:
+        cursor.close()
+        conn.close()
     
     scope = "user-follow-read user-read-email user-modify-playback-state user-read-playback-state"
     params = {
@@ -207,32 +218,46 @@ def callback():
         return jsonify({'error': 'State parameter missing'}), 400
     
     # Check state against database instead of session
+    # Check state against database instead of session
     conn = get_db_connection()
+    cursor = conn.cursor()
     
-    # Clean up expired states
-    conn.execute("""
-        DELETE FROM oauth_states 
-        WHERE created_at < NOW() - INTERVAL '10 minutes'
-    """)
+    try:
+        # Clean up expired states
+        cursor.execute("""
+            DELETE FROM oauth_states 
+            WHERE created_at < NOW() - INTERVAL '10 minutes'
+        """)
+        
+        # Check if state exists and is valid
+        cursor.execute("""
+            SELECT state FROM oauth_states 
+            WHERE state = %s AND created_at > NOW() - INTERVAL '10 minutes'
+        """, (state,))
+        
+        stored_state_row = cursor.fetchone()
+        
+        if not stored_state_row:
+            return jsonify({
+                'error': 'Invalid or expired state',
+                'received_state': state,
+                'message': 'State not found in database or has expired'
+            }), 400
+        
+        # State is valid, remove it from database (single use)
+        cursor.execute("DELETE FROM oauth_states WHERE state = %s", (state,))
+        conn.commit()
+        
+        print(f"State validated successfully: {state}")
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Database error during state validation: {e}")
+        return jsonify({'error': 'Database error during authentication'}), 500
     
-    # Check if state exists and is valid
-    stored_state_row = conn.execute("""
-        SELECT state FROM oauth_states 
-        WHERE state = %s AND created_at > NOW() - INTERVAL '10 minutes'
-    """, (state,)).fetchone()
-    
-    if not stored_state_row:
+    finally:
+        cursor.close()
         conn.close()
-        return jsonify({
-            'error': 'Invalid or expired state',
-            'received_state': state,
-            'message': 'State not found in database or has expired'
-        }), 400
-    
-    # State is valid, remove it from database (single use)
-    conn.execute("DELETE FROM oauth_states WHERE state = %s", (state,))
-    conn.commit()
-    conn.close()
     
     print(f"State validated successfully: {state}")
     
@@ -279,35 +304,44 @@ def callback():
             print(f"Session after user_id storage: {dict(session)}")
 
             # Store user in database
-            conn = get_db_connection()
-            conn.execute("""
-            INSERT INTO users (
-                spotify_user_id,
-                spotify_display_name,
-                spotify_email,
-                spotify_avatar_url,
-                access_token,
-                refresh_token,
-                token_expiry
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT(spotify_user_id) DO UPDATE SET
-                spotify_display_name = EXCLUDED.spotify_display_name,
-                spotify_email        = EXCLUDED.spotify_email,
-                spotify_avatar_url   = EXCLUDED.spotify_avatar_url,
-                access_token         = EXCLUDED.access_token,
-                refresh_token        = EXCLUDED.refresh_token,
-                token_expiry         = EXCLUDED.token_expiry
-            """, (
-                profile['id'],
-                profile.get('display_name'),
-                profile.get('email'),
-                (profile.get('images') or [{}])[0].get('url'),
-                tokens['access_token'],
-                tokens['refresh_token'],
-                session['expires_at']
-            ))
-            conn.commit()
-            conn.close()
+            try:
+                cursor.execute("""
+                INSERT INTO users (
+                    spotify_user_id,
+                    spotify_display_name,
+                    spotify_email,
+                    spotify_avatar_url,
+                    access_token,
+                    refresh_token,
+                    token_expiry
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(spotify_user_id) DO UPDATE SET
+                    spotify_display_name = EXCLUDED.spotify_display_name,
+                    spotify_email        = EXCLUDED.spotify_email,
+                    spotify_avatar_url   = EXCLUDED.spotify_avatar_url,
+                    access_token         = EXCLUDED.access_token,
+                    refresh_token        = EXCLUDED.refresh_token,
+                    token_expiry         = EXCLUDED.token_expiry
+                """, (
+                    profile['id'],
+                    profile.get('display_name'),
+                    profile.get('email'),
+                    (profile.get('images') or [{}])[0].get('url'),
+                    tokens['access_token'],
+                    tokens['refresh_token'],
+                    session['expires_at']
+                ))
+                conn.commit()
+                print(f"User profile stored: {profile['id']}")
+                
+            except Exception as e:
+                conn.rollback()
+                print(f"Database error storing user: {e}")
+                return jsonify({'error': 'Failed to store user data'}), 500
+            
+            finally:
+                cursor.close()
+                conn.close()
             
             print(f"User profile stored: {profile['id']}")
         else:
@@ -362,36 +396,47 @@ def me():
     session['user_id'] = profile['id']  # Store the user ID in the session
     
     conn = get_db_connection()
-    # Map Spotify fields into your users table columns
-    conn.execute("""
-    INSERT INTO users (
-        spotify_user_id,
-        spotify_display_name,
-        spotify_email,
-        spotify_avatar_url,
-        access_token,
-        refresh_token,
-        token_expiry
-    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-    ON CONFLICT(spotify_user_id) DO UPDATE SET
-        spotify_display_name = EXCLUDED.spotify_display_name,
-        spotify_email        = EXCLUDED.spotify_email,
-        spotify_avatar_url   = EXCLUDED.spotify_avatar_url,
-        access_token         = EXCLUDED.access_token,
-        refresh_token        = EXCLUDED.refresh_token,
-        token_expiry         = EXCLUDED.token_expiry
-    """, (
-    profile['id'],
-    profile.get('display_name'),
-    profile.get('email'),
-    (profile.get('images') or [{}])[0].get('url'),
-    access_token,
-    refresh_token,
-    token_expiry
-    ))
-    conn.commit()
-    conn.close()
-    return jsonify(profile)
+    cursor = conn.cursor()
+    try:
+        # Map Spotify fields into your users table columns
+        cursor.execute("""
+            INSERT INTO users (
+                spotify_user_id,
+                spotify_display_name,
+                spotify_email,
+                spotify_avatar_url,
+                access_token,
+                refresh_token,
+                token_expiry
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT(spotify_user_id) DO UPDATE SET
+                spotify_display_name = EXCLUDED.spotify_display_name,
+                spotify_email        = EXCLUDED.spotify_email,
+                spotify_avatar_url   = EXCLUDED.spotify_avatar_url,
+                access_token         = EXCLUDED.access_token,
+                refresh_token        = EXCLUDED.refresh_token,
+                token_expiry         = EXCLUDED.token_expiry
+        """, (
+            profile['id'],
+            profile.get('display_name'),
+            profile.get('email'),
+            (profile.get('images') or [{}])[0].get('url'),
+            access_token,
+            refresh_token,
+            token_expiry
+        ))
+        conn.commit()
+        
+        return jsonify(profile)
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating user profile: {e}")
+        return jsonify({'error': 'database_error'}), 500
+        
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route('/logout')
 def logout():
@@ -401,16 +446,26 @@ def logout():
     print(f"Logging out user_id: {user_id}, access_token: {'Present' if access_token else 'Missing'}")
     if user_id:
         conn = get_db_connection()
-        conn.execute("""
-            UPDATE users
-            SET
-                access_token = NULL,
-                refresh_token = NULL,
-                token_expiry = NULL
-            WHERE spotify_user_id = %s
-        """, (user_id,))
-        conn.commit()
-        conn.close()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                UPDATE users
+                SET
+                    access_token = NULL,
+                    refresh_token = NULL,
+                    token_expiry = NULL
+                WHERE spotify_user_id = %s
+            """, (user_id,))
+            conn.commit()
+            
+        except Exception as e:
+            conn.rollback()
+            print(f"Error during logout database update: {e}")
+            # Don't return error here as we still want to clear the session
+            
+        finally:
+            cursor.close()
+            conn.close()
     
     # Clear session but preserve the session object itself
     session.clear()
@@ -498,52 +553,66 @@ def add_friend():
         return jsonify({'error': 'spotify_api_error', 'details': profile}), profile_resp.status_code
     
     conn = get_db_connection()
-    # Check if user is already a friend
-    if conn.execute("""
-                    SELECT 1 FROM friends WHERE user_id = %s AND friend_id = %s
-                    """,
-                    (user_id, friend_id)).fetchone() or conn.execute("""
-                    SELECT 1 FROM friends WHERE user_id = %s AND friend_id = %s
-                    """,
-                    (friend_id, user_id)).fetchone():
-        conn.close()
-        return jsonify({'error': 'friend_already_exists'}), 400
-    
-    # Insert or update the user in the database
-    conn.execute("""
-    INSERT INTO users (
+    cursor = conn.cursor()
+    try:
+        # Check if user is already a friend
+        cursor.execute("""
+            SELECT 1 FROM friends WHERE user_id = %s AND friend_id = %s
+        """, (user_id, friend_id))
+        friend_exists1 = cursor.fetchone()
+        
+        cursor.execute("""
+            SELECT 1 FROM friends WHERE user_id = %s AND friend_id = %s
+        """, (friend_id, user_id))
+        friend_exists2 = cursor.fetchone()
+        
+        if friend_exists1 or friend_exists2:
+            return jsonify({'error': 'friend_already_exists'}), 400
+        
+        # Insert or update the user in the database
+        cursor.execute("""
+            INSERT INTO users (
                 spotify_user_id,
-        spotify_display_name,
-        spotify_avatar_url
-                 ) VALUES (%s, %s, %s) ON CONFLICT(spotify_user_id) DO UPDATE SET
-        spotify_display_name = EXCLUDED.spotify_display_name,
-        spotify_avatar_url   = EXCLUDED.spotify_avatar_url
-    """, (
-        profile['id'],
-        profile.get('display_name'),
-        (profile.get('images') or [{}])[0].get('url')
-    ))
+                spotify_display_name,
+                spotify_avatar_url
+            ) VALUES (%s, %s, %s) ON CONFLICT(spotify_user_id) DO UPDATE SET
+                spotify_display_name = EXCLUDED.spotify_display_name,
+                spotify_avatar_url   = EXCLUDED.spotify_avatar_url
+        """, (
+            profile['id'],
+            profile.get('display_name'),
+            (profile.get('images') or [{}])[0].get('url')
+        ))
 
-    # Create a new entry in the friends table
-    conn.execute("""
-    INSERT INTO friends (user_id, friend_id) VALUES (%s, %s)
-                 """, (user_id, friend_id))
-    
-    conn.execute("""
-    INSERT INTO friends (user_id, friend_id) VALUES (%s, %s)
-                 """, (friend_id, user_id))
-    conn.commit()
-    conn.close()
-
-    return jsonify({
-        'message': 'friend_added',
-        'friend': {
-            'user_id': user_id,
-            'spotify_user_id': profile['id'],
-            'display_name': profile.get('display_name'),
-            'avatar_url': (profile.get('images') or [{}])[0].get('url')
+        # Create a new entry in the friends table (bidirectional relationship)
+        cursor.execute("""
+            INSERT INTO friends (user_id, friend_id) VALUES (%s, %s)
+        """, (user_id, friend_id))
+        
+        cursor.execute("""
+            INSERT INTO friends (user_id, friend_id) VALUES (%s, %s)
+        """, (friend_id, user_id))
+        
+        conn.commit()
+        
+        return jsonify({
+            'message': 'friend_added',
+            'friend': {
+                'user_id': user_id,
+                'spotify_user_id': profile['id'],
+                'display_name': profile.get('display_name'),
+                'avatar_url': (profile.get('images') or [{}])[0].get('url')
             }
-    }), 201
+        }), 201
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error adding friend: {e}")
+        return jsonify({'error': 'database_error'}), 500
+        
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route('/list_friends', methods=['GET'])
 @ensure_token  # Ensure the access token is valid before proceeding
@@ -555,20 +624,34 @@ def list_friends():
     if not user_id:
         return jsonify({'error': 'user_id_not_found'}), 401
     conn = get_db_connection()
-    # Retrieve friends from the database
-    friends = conn.execute('''
-                        SELECT u.spotify_user_id, u.spotify_display_name, u.spotify_avatar_url
-                        FROM friends f
-                        JOIN users u ON f.friend_id = u.spotify_user_id
-                        WHERE f.user_id = %s
-                        ''', (user_id,)).fetchall()
-    conn.close()
-    # Convert the result to a list of dictionaries and return as JSON
-    return jsonify([{
-        'spotify_user_id': friend['spotify_user_id'],
-        'display_name': friend['spotify_display_name'],
-        'avatar_url': friend['spotify_avatar_url']
-    } for friend in friends])
+    cursor = conn.cursor()
+    try:
+        # Retrieve friends from the database
+        cursor.execute('''
+            SELECT u.spotify_user_id, u.spotify_display_name, u.spotify_avatar_url
+            FROM friends f
+            JOIN users u ON f.friend_id = u.spotify_user_id
+            WHERE f.user_id = %s
+        ''', (user_id,))
+        friends = cursor.fetchall()
+        
+        # Convert the result to a list of dictionaries
+        friends_list = [{
+            'spotify_user_id': friend['spotify_user_id'],
+            'display_name': friend['spotify_display_name'],
+            'avatar_url': friend['spotify_avatar_url']
+        } for friend in friends]
+        
+        return jsonify(friends_list)
+        
+    except Exception as e:
+        # Log the error (you might want to use proper logging here)
+        print(f"Error retrieving friends list: {e}")
+        return jsonify({'error': 'database_error'}), 500
+        
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route('/')
 def index():
@@ -585,37 +668,53 @@ def get_user_recommendations():
 
     # 1) Single DB query to get everything we need
     conn = get_db_connection()
-    rows = conn.execute("""
-        SELECT
-            rs.song_id,
-            rs.recommendation_id,
-            rs.like_dislike,
-            r.user_id          AS recommended_by,
-            u.spotify_display_name AS friend_name,
-            u.spotify_avatar_url   AS friend_avatar
-        FROM recommendations r
-        JOIN recommendation_songs rs
-          ON rs.recommendation_id = r.id
-        JOIN users u
-          ON u.spotify_user_id   = r.user_id
-        WHERE r.friend_id = %s
-        ORDER BY r.created_at DESC
-    """, (user_id,)).fetchall()
-    conn.close()
+    cursor = conn.cursor()
+    try:
+        # 1) Single DB query to get everything we need
+        cursor.execute("""
+            SELECT
+                rs.song_id,
+                rs.recommendation_id,
+                rs.like_dislike,
+                r.user_id          AS recommended_by,
+                u.spotify_display_name AS friend_name,
+                u.spotify_avatar_url   AS friend_avatar
+            FROM recommendations r
+            JOIN recommendation_songs rs
+              ON rs.recommendation_id = r.id
+            JOIN users u
+              ON u.spotify_user_id   = r.user_id
+            WHERE r.friend_id = %s
+            ORDER BY r.created_at DESC
+        """, (user_id,))
+        rows = cursor.fetchall()
+        
+    except Exception as e:
+        print(f"Error fetching recommendations: {e}")
+        return jsonify({'error': 'database_error'}), 500
+        
+    finally:
+        cursor.close()
+        conn.close()
 
     # 2) Batch‐fetch all Spotify tracks
     headers = {'Authorization': f'Bearer {access_token}'}
     all_ids = [row['song_id'] for row in rows]
     track_map = {}
-    for batch in chunked(all_ids, 50):
-        resp = requests.get(
-            'https://api.spotify.com/v1/tracks',
-            params={'ids': ','.join(batch)},
-            headers=headers
-        )
-        resp.raise_for_status()
-        for track in resp.json()['tracks']:
-            track_map[track['id']] = track
+    try:
+        for batch in chunked(all_ids, 50):
+            resp = requests.get(
+                'https://api.spotify.com/v1/tracks',
+                params={'ids': ','.join(batch)},
+                headers=headers
+            )
+            resp.raise_for_status()
+            for track in resp.json()['tracks']:
+                if track:  # Spotify may return null for deleted tracks
+                    track_map[track['id']] = track
+    except requests.RequestException as e:
+        print(f"Error fetching Spotify tracks: {e}")
+        return jsonify({'error': 'spotify_api_error'}), 500
 
     # 3) Build the response
     output = []
@@ -653,35 +752,51 @@ def get_sent_recommendations():
 
     # 1) Single DB query
     conn = get_db_connection()
-    rows = conn.execute("""
-        SELECT
-          rs.song_id,
-          rs.recommendation_id,
-          rs.like_dislike,
-          r.friend_id           AS recommended_to,
-          u.spotify_display_name AS friend_name,
-          u.spotify_avatar_url   AS friend_avatar
-        FROM recommendations      r
-        JOIN recommendation_songs  rs ON rs.recommendation_id = r.id
-        JOIN users                u  ON u.spotify_user_id   = r.friend_id
-        WHERE r.user_id = %s
-        ORDER BY r.created_at DESC
-    """, (user_id,)).fetchall()
-    conn.close()
+    cursor = conn.cursor()
+    try:
+        # 1) Single DB query
+        cursor.execute("""
+            SELECT
+              rs.song_id,
+              rs.recommendation_id,
+              rs.like_dislike,
+              r.friend_id           AS recommended_to,
+              u.spotify_display_name AS friend_name,
+              u.spotify_avatar_url   AS friend_avatar
+            FROM recommendations      r
+            JOIN recommendation_songs  rs ON rs.recommendation_id = r.id
+            JOIN users                u  ON u.spotify_user_id   = r.friend_id
+            WHERE r.user_id = %s
+            ORDER BY r.created_at DESC
+        """, (user_id,))
+        rows = cursor.fetchall()
+        
+    except Exception as e:
+        print(f"Error fetching sent recommendations: {e}")
+        return jsonify({'error': 'database_error'}), 500
+        
+    finally:
+        cursor.close()
+        conn.close()
 
     # 2) Batch-fetch tracks
     headers = {'Authorization': f'Bearer {access_token}'}
     track_ids = [row['song_id'] for row in rows]
     track_map = {}
-    for batch in chunked(track_ids, 50):
-        resp = requests.get(
-            'https://api.spotify.com/v1/tracks',
-            params={'ids': ','.join(batch)},
-            headers=headers
-        )
-        resp.raise_for_status()
-        for t in resp.json()['tracks']:
-            track_map[t['id']] = t
+    try:
+        for batch in chunked(track_ids, 50):
+            resp = requests.get(
+                'https://api.spotify.com/v1/tracks',
+                params={'ids': ','.join(batch)},
+                headers=headers
+            )
+            resp.raise_for_status()
+            for t in resp.json()['tracks']:
+                if t:  # Spotify may return null for deleted tracks
+                    track_map[t['id']] = t
+    except requests.RequestException as e:
+        print(f"Error fetching Spotify tracks: {e}")
+        return jsonify({'error': 'spotify_api_error'}), 500
 
     # 3) Build response
     out = []
@@ -723,53 +838,63 @@ def recommend_song():
     if user_id == friend_id:
         return jsonify({'error': 'cannot_recommend_to_yourself'}), 400
     
+    song_id = request.json.get('song_id')
+    if not song_id:
+        return jsonify({'error': 'song_id_required'}), 400
+    
     conn = get_db_connection()
-
-    # Check if user is friends with the friend_id
-    cur = conn.execute("""
-                SELECT EXISTS(
+    cursor = conn.cursor()
+    try:
+        # Check if user is friends with the friend_id
+        cursor.execute("""
+            SELECT EXISTS(
                 SELECT 1 FROM friends
                 WHERE (user_id = %s AND friend_id = %s)
                     OR (user_id = %s AND friend_id = %s)
-                )
-            """, (user_id, friend_id, friend_id, user_id))
+            )
+        """, (user_id, friend_id, friend_id, user_id))
+        
+        if not cursor.fetchone()[0]:
+            return jsonify({'error': 'Not_Friends_with_user'}), 400
 
-    if not cur.fetchone()[0]:
-        conn.close()
-        return jsonify({'error': 'Not_Friends_with_user'}), 400
+        # Check if recommendation already exists
+        cursor.execute('''
+            SELECT EXISTS(
+                SELECT 1
+                FROM recommendations r
+                JOIN recommendation_songs rs ON r.id = rs.recommendation_id
+                WHERE r.user_id = %s AND r.friend_id = %s AND rs.song_id = %s
+            )
+        ''', (user_id, friend_id, song_id))
+        
+        if cursor.fetchone()[0]:
+            return jsonify({'error': 'Song has already been recommended to this user'}), 400
 
-    
-    song_id = request.json.get('song_id')
-
-    # Check if recommendation already exists
-    existing = conn.execute('''
-        SELECT EXISTS(
-            SELECT 1
-            FROM recommendations r
-            JOIN recommendation_songs rs ON r.id = rs.recommendation_id
-            WHERE r.user_id = %s AND r.friend_id = %s AND rs.song_id = %s
-        )
-    ''', (user_id, friend_id, song_id)).fetchone()[0]
-
-    if existing:
-        conn.close()
-        return jsonify({'error': 'Song has already been recommended to this user'}), 400
-
-    # Insert new recommendation
-    conn.execute('INSERT INTO recommendations (user_id, friend_id) VALUES (%s, %s)', (user_id, friend_id))
-    recommendation_id = conn.execute('SELECT lastval()').fetchone()[0]
-    conn.execute('INSERT INTO recommendation_songs (recommendation_id, song_id) VALUES (%s, %s)', (recommendation_id, song_id))
-    conn.commit()
-    conn.close()
-
-    return jsonify({
-        'message': 'Song successfully recommended!',
-        'Song Details': {
-            'song_id': song_id,
-        },
-        'recommended_by': user_id,
-        'recommended_to': friend_id
+        # Insert new recommendation
+        cursor.execute('INSERT INTO recommendations (user_id, friend_id) VALUES (%s, %s)', (user_id, friend_id))
+        cursor.execute('SELECT lastval()')
+        recommendation_id = cursor.fetchone()[0]
+        cursor.execute('INSERT INTO recommendation_songs (recommendation_id, song_id) VALUES (%s, %s)', (recommendation_id, song_id))
+        
+        conn.commit()
+        
+        return jsonify({
+            'message': 'Song successfully recommended!',
+            'Song Details': {
+                'song_id': song_id,
+            },
+            'recommended_by': user_id,
+            'recommended_to': friend_id
         }), 201
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error recommending song: {e}")
+        return jsonify({'error': 'database_error'}), 500
+        
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route('/like_recommendation', methods=['POST'])
 @ensure_token  # Ensure the access token is valid before proceeding
