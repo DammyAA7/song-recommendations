@@ -609,13 +609,13 @@ function showPopupFriends() {
   }
 
   function getStatusIndicator(likeDislike) {
-    if (likeDislike === 1) {
+    if (likeDislike === true) {
       return `
             <div class="status-indicator liked">
                 <span class="status-text">Liked</span>
             </div>
         `;
-    } else if (likeDislike === 0) {
+    } else if (likeDislike === false) {
       return `
             <div class="status-indicator disliked">
                 <span class="status-text">Disliked</span>
@@ -930,8 +930,8 @@ function showPopupFriends() {
                   likeActive = storedState.liked ? "active" : "";
                   dislikeActive = storedState.disliked ? "active" : "";
                 } else {
-                  likeActive = rec.like_dislike === 1 ? "active" : "";
-                  dislikeActive = rec.like_dislike === 0 ? "active" : "";
+                  likeActive = rec.like_dislike === true ? "active" : "";
+                  dislikeActive = rec.like_dislike === false ? "active" : "";
                 }
 
                 return `
@@ -1084,7 +1084,7 @@ function showPopupFriends() {
         // Button doesn't do anything as requested
         console.log("Play button clicked for song:", songId);
         try {
-          const response = await fetch("http://127.0.1:5000/play_song", {
+          const response = await fetch("https://recspot-e6585868d70b.herokuapp.com/play_song", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
