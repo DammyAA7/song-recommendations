@@ -63,7 +63,7 @@ async function handleRecommendClick() {
   const originalText = button.innerHTML;
   try {
     // Show loading state
-    button.innerHTML = "⏳ Loading...";
+    button.innerHTML = "Loading...";
     button.disabled = true;
 
     // Check authentication
@@ -139,7 +139,7 @@ async function handleAuthFlow() {
   const authBtn = document.querySelector("#authorize-btn");
   if (!authBtn) return;
 
-  authBtn.innerHTML = "⏳ Connecting...";
+  authBtn.innerHTML = "Connecting...";
   authBtn.disabled = true;
 
   try {
@@ -666,10 +666,10 @@ function showPopupFriends() {
     // Initial load
     loadSentRecommendations();
 
-    // Set up smooth polling every 10 seconds
+    // Set up smooth polling every 2 seconds
     sentRecommendationsInterval = setInterval(() => {
       loadSentRecommendationsSmooth();
-    }, 10000);
+    }, 2000);
   }
 
   // Function to start smooth real-time updates
@@ -682,10 +682,10 @@ function showPopupFriends() {
     // Initial load
     loadReceivedRecommendations();
 
-    // Set up smooth polling every 10 seconds
+    // Set up smooth polling every 2 seconds
     receivedtRecommendationsInterval = setInterval(() => {
       loadReceivedRecommendationsSmooth();
-    }, 10000);
+    }, 2000);
   }
 
   function initializeSentRecommendations() {
@@ -1014,13 +1014,53 @@ function showPopupFriends() {
       const dislikeBtn = songItem.querySelector(".dislike-btn");
       const playBtn = songItem.querySelector(".play-btn");
 
-      // Like button handler
-      likeBtn.addEventListener("click", async (e) => {
-        e.stopPropagation();
+      // Store original state for error recovery
+      function getButtonState(btn) {
+        return btn.classList.contains("active");
+      }
 
-        const isActive = likeBtn.classList.contains("active");
-        const action = isActive ? "null" : 'like';
+      // Update UI optimistically (immediately)
+      function updateUIOptimistically(action, targetBtn, otherBtn) {
+        if (action === "like") {
+          targetBtn.classList.add("active");
+          otherBtn.classList.remove("active");
+        } else if (action === "dislike") {
+          targetBtn.classList.add("active");
+          otherBtn.classList.remove("active");
+        } else if (action === "null") {
+          targetBtn.classList.remove("active");
+        }
+      }
 
+      // Revert UI to previous state on error
+      function revertUI(
+        originalTargetState,
+        originalOtherState,
+        targetBtn,
+        otherBtn
+      ) {
+        if (originalTargetState) {
+          targetBtn.classList.add("active");
+        } else {
+          targetBtn.classList.remove("active");
+        }
+
+        if (originalOtherState) {
+          otherBtn.classList.add("active");
+        } else {
+          otherBtn.classList.remove("active");
+        }
+      }
+
+      async function handleLikeDislike(action, targetBtn, otherBtn) {
+        // 1. Store original state before making changes
+        const originalTargetState = getButtonState(targetBtn);
+        const originalOtherState = getButtonState(otherBtn);
+
+        // 2. Update UI immediately (optimistic update)
+        updateUIOptimistically(action, targetBtn, otherBtn);
+
+        // 3. Send request to server in background
         try {
           const response = await fetch(
             "https://recspot-e6585868d70b.herokuapp.com/like_recommendation",
@@ -1038,20 +1078,50 @@ function showPopupFriends() {
             }
           );
 
-          if (response.ok) {
-            // Update UI
-            if (action === 'like') {
-              likeBtn.classList.add("active");
-              dislikeBtn.classList.remove("active");
-            } else {
-              likeBtn.classList.remove("active");
-            }
-          } else {
-            console.error("Failed to update like status");
+          // 4. Handle server response
+          if (!response.ok) {
+            // Server error - revert UI to original state
+            revertUI(
+              originalTargetState,
+              originalOtherState,
+              targetBtn,
+              otherBtn
+            );
+
+            // Show error message to user
+            showMessage("Failed to update. Please try again.");
+
+            console.error(
+              "Server error:",
+              response.status,
+              response.statusText
+            );
           }
+          // If response.ok, keep the optimistic UI changes
         } catch (error) {
-          console.error("Error updating like status:", error);
+          // Network error - revert UI to original state
+          revertUI(
+            originalTargetState,
+            originalOtherState,
+            targetBtn,
+            otherBtn
+          );
+
+          // Show error message to user
+          showMessage("Network error. Please check your connection.");
+
+          console.error("Network error:", error);
         }
+      }
+
+      // Like button handler
+      likeBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+
+        const isActive = likeBtn.classList.contains("active");
+        const action = isActive ? "null" : "like";
+
+        handleLikeDislike(action, likeBtn, dislikeBtn);
       });
 
       // Dislike button handler
@@ -1059,39 +1129,9 @@ function showPopupFriends() {
         e.stopPropagation();
 
         const isActive = dislikeBtn.classList.contains("active");
-        const action = isActive ? "null" : 'dislike';
+        const action = isActive ? "null" : "dislike";
 
-        try {
-          const response = await fetch(
-            "https://recspot-e6585868d70b.herokuapp.com/like_recommendation",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              credentials: "include",
-              body: JSON.stringify({
-                recommendation_id: recId,
-                song_id: songId,
-                action: action,
-              }),
-            }
-          );
-
-          if (response.ok) {
-            // Update UI
-            if (action === 'dislike') {
-              dislikeBtn.classList.add("active");
-              likeBtn.classList.remove("active");
-            } else {
-              dislikeBtn.classList.remove("active");
-            }
-          } else {
-            console.error("Failed to update dislike status");
-          }
-        } catch (error) {
-          console.error("Error updating dislike status:", error);
-        }
+        handleLikeDislike(action, dislikeBtn, likeBtn);
       });
 
       // Play button handler (placeholder - doesn't do anything as requested)
