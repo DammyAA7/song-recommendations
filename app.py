@@ -927,7 +927,7 @@ def like_recommendation():
     if action == 'NULL':
         val = None
     else:
-        val = True if action == 'like' else False
+        val = "TRUE" if action == 'like' else "FALSE"
 
     conn = get_db_connection()
 
