@@ -920,14 +920,14 @@ def like_recommendation():
         return jsonify({'error': 'recommendation_id_required'}), 400
     if not song_id:
         return jsonify({'error': 'song_id_required'}), 400
-    if action not in ('like', 'dislike', 'NULL'):
+    if action not in ('like', 'dislike', 'null'):
         return jsonify({'error': 'invalid_action', 'message': "action must be 'like' or 'dislike'"}), 400
 
     # Convert action to a value for the database
-    if action == 'NULL':
+    if action == 'null':
         val = None
     else:
-        val = "TRUE" if action == 'like' else "FALSE"
+        val = True if action == 'like' else False
 
     conn = get_db_connection()
 

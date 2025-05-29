@@ -772,9 +772,9 @@ function showPopupFriends() {
                         ${userRecs
                           .map((rec) => {
                             const likeActive =
-                              rec.like_dislike === 1 ? "active" : "";
+                              rec.like_dislike === true ? "active" : "";
                             const dislikeActive =
-                              rec.like_dislike === 0 ? "active" : "";
+                              rec.like_dislike === false ? "active" : "";
                             return `
                             <div class="song-item" data-rec-id="${
                               rec.recommendation_id
