@@ -388,9 +388,7 @@ def callback():
 @ensure_token  # Ensure the access token is valid before proceeding
 def me():
     access_token = session.get('access_token')
-    refresh_token = session.get('refresh_token')
-    token_expiry = session.get('expires_at')
-    if not access_token or not refresh_token:
+    if not access_token:
         return jsonify({'error': 'Access token not found'}), 401
     profile = requests.get(
         "https://api.spotify.com/v1/me",
@@ -399,50 +397,8 @@ def me():
     if 'error' in profile:
         return jsonify({'error': 'spotify_api_error', 'details': profile}), 400
     session['user_id'] = profile['id']  # Store the user ID in the session
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        # Map Spotify fields into your users table columns
-        cursor.execute("""
-            INSERT INTO users (
-                spotify_user_id,
-                spotify_display_name,
-                spotify_email,
-                spotify_avatar_url,
-                access_token,
-                refresh_token,
-                token_expiry
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT(spotify_user_id) DO UPDATE SET
-                spotify_display_name = EXCLUDED.spotify_display_name,
-                spotify_email        = EXCLUDED.spotify_email,
-                spotify_avatar_url   = EXCLUDED.spotify_avatar_url,
-                access_token         = EXCLUDED.access_token,
-                refresh_token        = EXCLUDED.refresh_token,
-                token_expiry         = EXCLUDED.token_expiry
-        """, (
-            profile['id'],
-            profile.get('display_name'),
-            profile.get('email'),
-            (profile.get('images') or [{}])[0].get('url'),
-            access_token,
-            refresh_token,
-            token_expiry
-        ))
-        conn.commit()
         
-        return jsonify(profile)
-        
-    except Exception as e:
-        conn.rollback()
-        print(f"Error updating user profile: {e}")
-        return jsonify({'error': 'database_error'}), 500
-        
-    finally:
-        cursor.close()
-        conn.close()
-
+    return jsonify(profile)
 @app.route('/logout')
 def logout():
     # Clear the session data
@@ -914,7 +870,7 @@ def like_recommendation():
     # Check if the request contains a recommendation_id
     rec_id = request.json.get('recommendation_id')
     song_id  = request.json.get('song_id')
-    action   = request.json.get('action', 'like')  # 'like' or 'dislike'
+    action   = request.json.get('action')  # 'like' or 'dislike'
 
     if not rec_id:
         return jsonify({'error': 'recommendation_id_required'}), 400
@@ -930,42 +886,57 @@ def like_recommendation():
         val = True if action == 'like' else False
 
     conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # 2) Verify that recommendation exists and belongs to this user
+        cursor.execute('''
+            SELECT 1
+            FROM recommendations
+            WHERE id = %s AND friend_id = %s
+        ''', (rec_id, user_id))
+        rec = cursor.fetchone()
+        
+        if not rec:
+            return jsonify({'error': 'not_found', 'message': 'Recommendation not found or not yours'}), 404
 
-    # 2) Verify that recommendation exists and belongs to this user
-    rec = conn.execute('''
-        SELECT 1
-        FROM recommendations
-        WHERE id = %s AND friend_id = %s
-    ''', (rec_id, user_id)).fetchone()
-    if not rec:
+        # 3) Verify that the song is part of that recommendation
+        cursor.execute('''
+            SELECT 1
+            FROM recommendation_songs
+            WHERE recommendation_id = %s AND song_id = %s
+        ''', (rec_id, song_id))
+        rs = cursor.fetchone()
+        
+        if not rs:
+            return jsonify({'error': 'not_found', 'message': 'Song not in that recommendation'}), 404
+
+        # 4) Update the like_dislike flag
+        cursor.execute('''
+            UPDATE recommendation_songs
+            SET like_dislike = %s
+            WHERE recommendation_id = %s AND song_id = %s
+        ''', (val, rec_id, song_id))
+        
+        conn.commit()
+        
+        return jsonify({
+            'message': 'Recommendation song updated',
+            'recommendation_id': rec_id,
+            'song_id': song_id,
+            'action': action
+        }), 200
+        
+    except Exception as e:
+        conn.rollback()
+        # Log the error for debugging
+        print(f"Error in like_recommendation: {e}")
+        return jsonify({'error': 'database_error', 'message': 'An error occurred while processing your request'}), 500
+        
+    finally:
+        cursor.close()
         conn.close()
-        return jsonify({'error': 'not_found', 'message': 'Recommendation not found or not yours'}), 404
 
-    # 3) Verify that the song is part of that recommendation
-    rs = conn.execute('''
-        SELECT 1
-        FROM recommendation_songs
-        WHERE recommendation_id = %s AND song_id = %s
-    ''', (rec_id, song_id)).fetchone()
-    if not rs:
-        conn.close()
-        return jsonify({'error': 'not_found', 'message': 'Song not in that recommendation'}), 404
-
-    # 4) Update the like_dislike flag
-    conn.execute('''
-        UPDATE recommendation_songs
-        SET like_dislike = %s
-        WHERE recommendation_id = %s AND song_id = %s
-    ''', (val, rec_id, song_id))
-    conn.commit()
-    conn.close()
-
-    return jsonify({
-        'message': 'Recommendation song updated',
-        'recommendation_id': rec_id,
-        'song_id': song_id,
-        'action': action
-    }), 200
 
 @app.route('/get_song_id', methods=['POST'])
 @ensure_token  # Ensure the access token is valid before proceeding

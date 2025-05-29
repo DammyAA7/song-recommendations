@@ -1019,7 +1019,7 @@ function showPopupFriends() {
         e.stopPropagation();
 
         const isActive = likeBtn.classList.contains("active");
-        const action = isActive ? "NULL" : "like";
+        const action = isActive ? "null" : 'like';
 
         try {
           const response = await fetch(
@@ -1040,7 +1040,7 @@ function showPopupFriends() {
 
           if (response.ok) {
             // Update UI
-            if (action === "like") {
+            if (action === 'like') {
               likeBtn.classList.add("active");
               dislikeBtn.classList.remove("active");
             } else {
@@ -1059,7 +1059,7 @@ function showPopupFriends() {
         e.stopPropagation();
 
         const isActive = dislikeBtn.classList.contains("active");
-        const action = isActive ? "NULL" : "dislike";
+        const action = isActive ? "null" : 'dislike';
 
         try {
           const response = await fetch(
@@ -1080,7 +1080,7 @@ function showPopupFriends() {
 
           if (response.ok) {
             // Update UI
-            if (action === "dislike") {
+            if (action === 'dislike') {
               dislikeBtn.classList.add("active");
               likeBtn.classList.remove("active");
             } else {
