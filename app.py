@@ -967,41 +967,40 @@ def get_song_id():
         return jsonify({'error': 'spotify_api_error', 'details': album_resp.json()}), album_resp.status_code
     album = album_resp.json()
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        # Check if the song exists in Spotify
-        cursor.execute('''
-                    SELECT EXISTS(
-                       SELECT 
-                       FROM songs
-                       WHERE song_id = %s
-                       )
-                       ''', (track['id']))
-        
-        if not cursor.fetchone()[0]:
-            # If the song does not exist, we can fetch it from Spotify
-            cursor.execute('''
-                INSERT INTO songs (song_id, title, artist, track_cover)
-                VALUES (%s, %s, %s, %s)
-            ''', (
-                track['id'],
-                track['name'],
-                ', '.join(artist['name'] for artist in track['artists']),
-                (album['images'][0]['url'] if album['images'] else None)
-            ))
-            conn.commit()
-    except Exception as e:
-        conn.rollback()
-        print(f"Error storing song in database: {e}")
-        return jsonify({'error': 'database_error'}), 500
-    finally:
-        cursor.close()
-        conn.close()
-
     # Find the track in the album   
     for track in album.get('tracks', {}).get('items', []):
         if track['name'].lower() == track_name.lower():
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            try:
+                # Check if the song exists in Spotify
+                cursor.execute('''
+                            SELECT EXISTS(
+                            SELECT 
+                            FROM songs
+                            WHERE song_id = %s
+                            )
+                            ''', (track['id']))
+                
+                if not cursor.fetchone()[0]:
+                    # If the song does not exist, we can fetch it from Spotify
+                    cursor.execute('''
+                        INSERT INTO songs (song_id, title, artist, track_cover)
+                        VALUES (%s, %s, %s, %s)
+                    ''', (
+                        track['id'],
+                        track['name'],
+                        ', '.join(artist['name'] for artist in track['artists']),
+                        (album['images'][0]['url'] if album['images'] else None)
+                    ))
+                    conn.commit()
+            except Exception as e:
+                conn.rollback()
+                print(f"Error storing song in database: {e}")
+                return jsonify({'error': 'database_error'}), 500
+            finally:
+                cursor.close()
+                conn.close()
             return jsonify({
                 'song_id': track['id'],
                 'title': track['name'],
