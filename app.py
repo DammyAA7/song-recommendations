@@ -976,11 +976,11 @@ def get_song_id():
                 # Check if the song exists in Spotify
                 cursor.execute('''
                             SELECT EXISTS(
-                            SELECT 
+                            SELECT 1
                             FROM songs
                             WHERE song_id = %s
                             )
-                            ''', (track['id']))
+                            ''', (track['id'],))
                 
                 if not cursor.fetchone()[0]:
                     # If the song does not exist, we can fetch it from Spotify
