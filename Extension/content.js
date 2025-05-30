@@ -376,6 +376,56 @@ function showPopupFriends() {
     }
   });
 
+
+  // Global function to toggle the friend requests modal
+function toggleRequestsModal() {
+  // Check if modal already exists
+  let requestsModal = document.querySelector('#friend-requests-modal');
+  
+  if (requestsModal) {
+    // Close existing modal
+    requestsModal.remove();
+    return;
+  }
+
+  // Create new modal
+  requestsModal = document.createElement('div');
+  requestsModal.id = 'friend-requests-modal';
+  requestsModal.className = 'requests-modal-overlay';
+  
+  requestsModal.innerHTML = `
+    <div class="requests-modal-content">
+      <div class="requests-modal-header">
+        <h3>Friend Requests</h3>
+        <button class="close-requests-btn" onclick="toggleRequestsModal()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="requests-modal-body">
+        <div class="friend-requests-list" id="modal-friend-requests-list">
+          <!-- Populated with dummy data -->
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Add to page
+  document.body.appendChild(requestsModal);
+  
+  // Load requests data
+  loadModalFriendRequests();
+  
+  // Close modal when clicking outside
+  requestsModal.addEventListener('click', (e) => {
+    if (e.target === requestsModal) {
+      toggleRequestsModal();
+    }
+  });
+}
+  
+
   // Tab switching functionality
   const tabBtns = content.querySelectorAll(".tab-btn");
   const tabContents = content.querySelectorAll(".tab-content");

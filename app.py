@@ -752,7 +752,7 @@ def get_sent_recommendations():
         for row in rows:
             track = track_map.get(row['song_id'])
             out.append({
-                'song_id'           : track['id'],
+                'song_id'           : track['song_id'],
                 'title'             : track['title'],
                 'artist'            : track['artist'],
                 'track_cover'       : track['track_cover'],
