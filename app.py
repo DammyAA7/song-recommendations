@@ -687,10 +687,10 @@ def get_user_recommendations():
             track = song_map.get(row['song_id'])
 
             output.append({
-                'song_id'          : row['song_id'],
+                'song_id'          : track['song_id'],
                 'title'            : track['title'],
                 'artist'           : track['artist'],
-                'track_cover'      : rows['track_cover'],
+                'track_cover'      : track['track_cover'],
                 'recommendation_id': row['recommendation_id'],
                 'recommended_by'   : row['recommended_by'],
                 'friend_name'      : row['friend_name'],
@@ -735,6 +735,34 @@ def get_sent_recommendations():
             ORDER BY r.created_at DESC
         """, (user_id,))
         rows = cursor.fetchall()
+
+        track_ids = [row['song_id'] for row in rows]
+
+        cursor.execute("""
+            SELECT song_id, title, artist, track_cover
+            FROM songs  
+            WHERE song_id = ANY(%s) 
+        """, (track_ids,))
+        song_rows = cursor.fetchall()
+
+        track_map = {row ['song_id']: row for row in song_rows}
+
+        # 3) Build response
+        out = []
+        for row in rows:
+            track = track_map.get(row['song_id'])
+            out.append({
+                'song_id'           : track['id'],
+                'title'             : track['title'],
+                'artist'            : track['artist'],
+                'track_cover'       : track['track_cover'],
+                'recommendation_id' : row['recommendation_id'],
+                'recommended_to'    : row['recommended_to'],
+                'friend_name'       : row['friend_name'],
+                'friend_avatar'     : row['friend_avatar'],
+                'like_dislike'      : row['like_dislike']   # 1 = like, 0 = dislike, None = pending
+            })
+        return jsonify(out)
         
     except Exception as e:
         print(f"Error fetching sent recommendations: {e}")
@@ -743,48 +771,6 @@ def get_sent_recommendations():
     finally:
         cursor.close()
         conn.close()
-
-    # 2) Batch-fetch tracks
-    headers = {'Authorization': f'Bearer {access_token}'}
-    track_ids = [row['song_id'] for row in rows]
-    track_map = {}
-    try:
-        for batch in chunked(track_ids, 50):
-            resp = requests.get(
-                'https://api.spotify.com/v1/tracks',
-                params={'ids': ','.join(batch)},
-                headers=headers
-            )
-            resp.raise_for_status()
-            for t in resp.json()['tracks']:
-                if t:  # Spotify may return null for deleted tracks
-                    track_map[t['id']] = t
-    except requests.RequestException as e:
-        print(f"Error fetching Spotify tracks: {e}")
-        return jsonify({'error': 'spotify_api_error'}), 500
-
-    # 3) Build response
-    out = []
-    for row in rows:
-        tid = row['song_id']
-        track = track_map.get(tid)
-        if not track:
-            out.append({'error': 'spotify_api_error', 'song_id': tid})
-            continue
-
-        out.append({
-            'song_id'           : tid,
-            'title'             : track['name'],
-            'artist'            : ', '.join(a['name'] for a in track['artists']),
-            'track_cover'       : (track['album']['images'][0]['url']
-                                   if track['album']['images'] else None),
-            'recommendation_id' : row['recommendation_id'],
-            'recommended_to'    : row['recommended_to'],
-            'friend_name'       : row['friend_name'],
-            'friend_avatar'     : row['friend_avatar'],
-            'like_dislike'      : row['like_dislike']   # 1 = like, 0 = dislike, None = pending
-        })
-    return jsonify(out)
 
 @app.route('/recommend', methods=['POST'])
 @ensure_token  # Ensure the access token is valid before proceeding
