@@ -81,20 +81,24 @@ def refresh_access_token():
         if not row:
             return jsonify({'error': 'refresh_token_not_found'}), 401
         refresh_token = row['refresh_token']
-    auth_header = requests.auth.HTTPBasicAuth(
-        os.getenv("SPOTIFY_CLIENT_ID"),
-        os.getenv("SPOTIFY_CLIENT_SECRET")
+    try:
+        auth_header = requests.auth.HTTPBasicAuth(
+        os.environ.get("SPOTIFY_CLIENT_ID"),
+        os.environ.get("SPOTIFY_CLIENT_SECRET")
     )
-    resp = requests.post(
-        'https://accounts.spotify.com/api/token',
-        data={
-            'grant_type':    'refresh_token',
-            'refresh_token': refresh_token
-        },
-        auth=auth_header
-    )
-    resp.raise_for_status()
-    tokens = resp.json()
+        resp = requests.post(
+            'https://accounts.spotify.com/api/token',
+            data={
+                'grant_type':    'refresh_token',
+                'refresh_token': refresh_token
+            },
+            auth=auth_header
+        )
+        resp.raise_for_status()
+        tokens = resp.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error refreshing token from Spotify: {e}")
+        return jsonify({'error': 'spotify_api_error'}), 500
     # tokens contains: access_token, token_type, scope, expires_in
     session['access_token'] = tokens['access_token']
     session['expires_at']   = time.time() + tokens['expires_in']
@@ -103,14 +107,32 @@ def refresh_access_token():
         session['refresh_token'] = tokens['refresh_token']
 
     conn = get_db_connection()
-    # Update the access token in the database
-    conn.execute("""
-        UPDATE users
-        SET access_token = %s, refresh_token = %s, token_expiry = %s
-        WHERE spotify_user_id = %s
-    """, (session['access_token'], session['refresh_token'], session['expires_at'], session.get('user_id')))
-    conn.commit()
-    conn.close()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            UPDATE users
+            SET access_token = %s, refresh_token = %s, token_expiry = %s
+            WHERE spotify_user_id = %s
+        """, (
+            session['access_token'], 
+            session['refresh_token'], 
+            session['expires_at'], 
+            session.get('user_id')
+        ))
+        
+        conn.commit()
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error updating tokens in database: {e}")
+        # Don't return error here since we already have the tokens in session
+        # The function can still succeed even if DB update fails
+        
+    finally:
+        cursor.close()
+        conn.close()
+    
     return session['access_token']
 
 def ensure_token(f):
@@ -265,12 +287,12 @@ def callback():
     token_data = {
         "grant_type": "authorization_code",
         "code": code,
-        "redirect_uri": os.getenv("SPOTIFY_REDIRECT_URI"),
+        "redirect_uri": os.environ.get("SPOTIFY_REDIRECT_URI"),
     }
 
     auth_header = requests.auth.HTTPBasicAuth(
-        os.getenv("SPOTIFY_CLIENT_ID"),
-        os.getenv("SPOTIFY_CLIENT_SECRET")
+        os.environ.get("SPOTIFY_CLIENT_ID"),
+        os.environ.get("SPOTIFY_CLIENT_SECRET")
     )
 
     try:
@@ -649,6 +671,36 @@ def get_user_recommendations():
             ORDER BY r.created_at DESC
         """, (user_id,))
         rows = cursor.fetchall()
+
+        # 2) Batch‐fetch all Spotify tracks
+        all_ids = [row['song_id'] for row in rows]
+        cursor.execute("""
+            SELECT song_id, title, artist, track_cover
+            FROM songs  
+            WHERE song_id = ANY(%s) 
+        """, (all_ids,))
+        song_rows = cursor.fetchall()
+        output = []
+        for row in rows:
+            tid = row['song_id']
+            track = song_rows.get(tid)
+
+            output.append({
+                'song_id'          : tid,
+                'title'            : track['name'],
+                'artist'           : ', '.join(a['name'] for a in track['artists']),
+                'album'            : track['album']['name'],
+                'track_cover'      : (track['album']['images'][0]['url']
+                                    if track['album']['images'] else None),
+                'year'             : track['album']['release_date'][:4],
+                'recommendation_id': row['recommendation_id'],
+                'recommended_by'   : row['recommended_by'],
+                'friend_name'      : row['friend_name'],
+                'friend_avatar'    : row['friend_avatar'],
+                'like_dislike'     : row['like_dislike']  # 1 = like, 0 = dislike, None = pending
+            })
+
+        return jsonify(output)
         
     except Exception as e:
         print(f"Error fetching recommendations: {e}")
@@ -657,51 +709,6 @@ def get_user_recommendations():
     finally:
         cursor.close()
         conn.close()
-
-    # 2) Batch‐fetch all Spotify tracks
-    headers = {'Authorization': f'Bearer {access_token}'}
-    all_ids = [row['song_id'] for row in rows]
-    track_map = {}
-    try:
-        for batch in chunked(all_ids, 50):
-            resp = requests.get(
-                'https://api.spotify.com/v1/tracks',
-                params={'ids': ','.join(batch)},
-                headers=headers
-            )
-            resp.raise_for_status()
-            for track in resp.json()['tracks']:
-                if track:  # Spotify may return null for deleted tracks
-                    track_map[track['id']] = track
-    except requests.RequestException as e:
-        print(f"Error fetching Spotify tracks: {e}")
-        return jsonify({'error': 'spotify_api_error'}), 500
-
-    # 3) Build the response
-    output = []
-    for row in rows:
-        tid = row['song_id']
-        track = track_map.get(tid)
-        if not track:
-            output.append({'error': 'spotify_api_error', 'song_id': tid})
-            continue
-
-        output.append({
-            'song_id'          : tid,
-            'title'            : track['name'],
-            'artist'           : ', '.join(a['name'] for a in track['artists']),
-            'album'            : track['album']['name'],
-            'track_cover'      : (track['album']['images'][0]['url']
-                                  if track['album']['images'] else None),
-            'year'             : track['album']['release_date'][:4],
-            'recommendation_id': row['recommendation_id'],
-            'recommended_by'   : row['recommended_by'],
-            'friend_name'      : row['friend_name'],
-            'friend_avatar'    : row['friend_avatar'],
-            'like_dislike'     : row['like_dislike']  # 1 = like, 0 = dislike, None = pending
-        })
-
-    return jsonify(output)
 
 @app.route('/sent_recommendations', methods=['GET'])
 @ensure_token
@@ -937,7 +944,6 @@ def like_recommendation():
         cursor.close()
         conn.close()
 
-
 @app.route('/get_song_id', methods=['POST'])
 @ensure_token  # Ensure the access token is valid before proceeding
 def get_song_id():
@@ -960,6 +966,39 @@ def get_song_id():
     if album_resp.status_code != 200:
         return jsonify({'error': 'spotify_api_error', 'details': album_resp.json()}), album_resp.status_code
     album = album_resp.json()
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Check if the song exists in Spotify
+        cursor.execute('''
+                    SELECT EXISTS(
+                       SELECT 
+                       FROM songs
+                       WHERE song_id = %s
+                       )
+                       ''', (track['id']))
+        
+        if not cursor.fetchone()[0]:
+            # If the song does not exist, we can fetch it from Spotify
+            cursor.execute('''
+                INSERT INTO songs (song_id, title, artist, track_cover)
+                VALUES (%s, %s, %s, %s)
+            ''', (
+                track['id'],
+                track['name'],
+                ', '.join(artist['name'] for artist in track['artists']),
+                (album['images'][0]['url'] if album['images'] else None)
+            ))
+            conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"Error storing song in database: {e}")
+        return jsonify({'error': 'database_error'}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
     # Find the track in the album   
     for track in album.get('tracks', {}).get('items', []):
         if track['name'].lower() == track_name.lower():

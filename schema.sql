@@ -44,6 +44,13 @@ CREATE TABLE IF NOT EXISTS recommendation_songs (
     FOREIGN KEY (recommendation_id) REFERENCES recommendations(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS songs (
+    song_id VARCHAR(255) PRIMARY KEY, -- Unique identifier for the song
+    title VARCHAR(255) NOT NULL, -- Title of the song
+    artist VARCHAR(255) NOT NULL, -- Artist of the song
+    track_cover TEXT -- URL to the song on Spotify
+);
+
 -- OAuth states table for storing OAuth states
 CREATE TABLE IF NOT EXISTS oauth_states (
     id SERIAL PRIMARY KEY, -- Auto-incrementing primary key using SERIAL

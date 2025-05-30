@@ -292,6 +292,10 @@ function showPopupFriends() {
         <div class="popup-header">
           <div class="tab-navigation">
             <button class="tab-btn active" data-tab="friends">Friends</button>
+            <button class="tab-btn" data-tab="requests">
+              Requests
+              <span class="notification-badge" id="requests-badge">3</span>
+            </button>
             <button class="tab-btn" data-tab="sent">Sent</button>
             <button class="tab-btn" data-tab="received">Received</button>
           </div>
@@ -308,6 +312,15 @@ function showPopupFriends() {
             <div class="loading-message">Loading friends...</div>
           </div>
         </div>
+        <div class="tab-content hidden" id="requests-tab">
+          <div class="requests-header">
+            <h3>Friend Requests</h3>
+            <p class="requests-subtitle">People who want to be your friend</p>
+          </div>
+          <div class="friend-requests-list" id="friend-requests-list">
+            <!-- Populated with dummy data -->
+          </div>
+        </div>
 
         <div class="tab-content hidden" id="sent-tab">
           <div class="recommendations-list" id="sent-recommendations">
@@ -321,6 +334,14 @@ function showPopupFriends() {
           </div>
         </div>
       </div>
+
+      <!-- Floating Friend Requests Button -->
+      <button class="floating-requests-btn" id="floating-requests-btn" onclick="toggleRequestsModal()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1H5C3.89 1 3 1.89 3 3V21C3 22.11 3.89 23 5 23H11V21H5V3H13V9H21ZM16 11.5C17.38 11.5 18.5 12.62 18.5 14S17.38 16.5 16 16.5 13.5 15.38 13.5 14 14.62 11.5 16 11.5ZM20 19.5V18.5C20 17.12 17.76 16.5 16 16.5S12 17.12 12 18.5V19.5H20Z"/>
+        </svg>
+        <span class="floating-badge" id="floating-requests-badge">3</span>
+      </button>
       
       <div class="popup-footer">
         <button id="debug-friends-btn" class="spotify-btn-secondary">Debug Session</button>
@@ -669,7 +690,7 @@ function showPopupFriends() {
     // Set up smooth polling every 2 seconds
     sentRecommendationsInterval = setInterval(() => {
       loadSentRecommendationsSmooth();
-    }, 2000);
+    }, 15000);
   }
 
   // Function to start smooth real-time updates
@@ -685,7 +706,7 @@ function showPopupFriends() {
     // Set up smooth polling every 2 seconds
     receivedtRecommendationsInterval = setInterval(() => {
       loadReceivedRecommendationsSmooth();
-    }, 2000);
+    }, 15000);
   }
 
   function initializeSentRecommendations() {
