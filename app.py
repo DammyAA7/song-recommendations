@@ -680,26 +680,23 @@ def get_user_recommendations():
             WHERE song_id = ANY(%s) 
         """, (all_ids,))
         song_rows = cursor.fetchall()
+        # Build a lookup map
+        song_map = { song['song_id']: song for song in song_rows }
         output = []
         for row in rows:
-            tid = row['song_id']
-            track = song_rows.get(tid)
+            track = song_map.get(row['song_id'])
 
             output.append({
-                'song_id'          : tid,
-                'title'            : track['name'],
-                'artist'           : ', '.join(a['name'] for a in track['artists']),
-                'album'            : track['album']['name'],
-                'track_cover'      : (track['album']['images'][0]['url']
-                                    if track['album']['images'] else None),
-                'year'             : track['album']['release_date'][:4],
+                'song_id'          : row['song_id'],
+                'title'            : track['title'],
+                'artist'           : track['artist'],
+                'track_cover'      : rows['track_cover'],
                 'recommendation_id': row['recommendation_id'],
                 'recommended_by'   : row['recommended_by'],
                 'friend_name'      : row['friend_name'],
                 'friend_avatar'    : row['friend_avatar'],
                 'like_dislike'     : row['like_dislike']  # 1 = like, 0 = dislike, None = pending
             })
-
         return jsonify(output)
         
     except Exception as e:
@@ -848,9 +845,7 @@ def recommend_song():
         
         return jsonify({
             'message': 'Song successfully recommended!',
-            'Song Details': {
-                'song_id': song_id,
-            },
+            'song_id': song_id,
             'recommended_by': user_id,
             'recommended_to': friend_id
         }), 201
@@ -1006,8 +1001,7 @@ def get_song_id():
                 'title': track['name'],
                 'artist': ', '.join(artist['name'] for artist in track['artists']),
                 'track_cover': album['images'][0]['url'] if album['images'] else None,
-                'album': album['name'],
-                'year': album['release_date'][:4]
+                'album': album['name']
             }), 200
     return jsonify({'error': 'track_not_found_in_album'}), 404
 
@@ -1038,7 +1032,6 @@ def play_song():
         return jsonify({'message': 'Song is now playing', 'chrome_device_id': device_id}), 200
     else:
         return jsonify({'error': 'spotify_api_error', 'details': resp.json()}), resp.status_code
-
 
 def get_chrome_id(access_token):
     resp = requests.get(
