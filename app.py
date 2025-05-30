@@ -686,6 +686,9 @@ def get_user_recommendations():
         for row in rows:
             track = song_map.get(row['song_id'])
 
+            if not track:
+                continue
+
             output.append({
                 'song_id'          : track['song_id'],
                 'title'            : track['title'],
@@ -751,6 +754,9 @@ def get_sent_recommendations():
         out = []
         for row in rows:
             track = track_map.get(row['song_id'])
+            if not track:
+                continue
+
             out.append({
                 'song_id'           : track['song_id'],
                 'title'             : track['title'],

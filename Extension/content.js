@@ -376,24 +376,23 @@ function showPopupFriends() {
     }
   });
 
-
   // Global function to toggle the friend requests modal
-function toggleRequestsModal() {
-  // Check if modal already exists
-  let requestsModal = document.querySelector('#friend-requests-modal');
-  
-  if (requestsModal) {
-    // Close existing modal
-    requestsModal.remove();
-    return;
-  }
+  function toggleRequestsModal() {
+    // Check if modal already exists
+    let requestsModal = document.querySelector("#friend-requests-modal");
 
-  // Create new modal
-  requestsModal = document.createElement('div');
-  requestsModal.id = 'friend-requests-modal';
-  requestsModal.className = 'requests-modal-overlay';
-  
-  requestsModal.innerHTML = `
+    if (requestsModal) {
+      // Close existing modal
+      requestsModal.remove();
+      return;
+    }
+
+    // Create new modal
+    requestsModal = document.createElement("div");
+    requestsModal.id = "friend-requests-modal";
+    requestsModal.className = "requests-modal-overlay";
+
+    requestsModal.innerHTML = `
     <div class="requests-modal-content">
       <div class="requests-modal-header">
         <h3>Friend Requests</h3>
@@ -410,21 +409,76 @@ function toggleRequestsModal() {
       </div>
     </div>
   `;
+
+    // Add to page
+    document.body.appendChild(requestsModal);
+
+    // Load requests data
+    loadModalFriendRequests();
+
+    // Close modal when clicking outside
+    requestsModal.addEventListener("click", (e) => {
+      if (e.target === requestsModal) {
+        toggleRequestsModal();
+      }
+    });
+  }
+
+  function loadModalFriendRequests() {
+  const requestsList = document.querySelector('#modal-friend-requests-list');
   
-  // Add to page
-  document.body.appendChild(requestsModal);
-  
-  // Load requests data
-  loadModalFriendRequests();
-  
-  // Close modal when clicking outside
-  requestsModal.addEventListener('click', (e) => {
-    if (e.target === requestsModal) {
-      toggleRequestsModal();
+  // Dummy friend request data
+  const dummyRequests = [
+    {
+      id: 'req_001',
+      username: 'musiclover23',
+      displayName: 'Alex Johnson',
+      profileImage: 'https://i.pravatar.cc/150?img=1',
+      mutualFriends: 5,
+      requestDate: '2 days ago'
+    },
+    {
+      id: 'req_002',
+      username: 'indievibes',
+      displayName: 'Sarah Chen',
+      profileImage: 'https://i.pravatar.cc/150?img=2',
+      mutualFriends: 2,
+      requestDate: '1 week ago'
+    },
+    {
+      id: 'req_003',
+      username: 'rockfan2024',
+      displayName: 'Mike Rodriguez',
+      profileImage: 'https://i.pravatar.cc/150?img=3',
+      mutualFriends: 8,
+      requestDate: '3 days ago'
     }
-  });
+  ];
+
+  // Generate HTML for friend requests
+  const requestsHTML = dummyRequests.map(request => `
+    <div class="friend-request-item" data-request-id="${request.id}">
+      <div class="request-user-info">
+        <img src="${request.profileImage}" alt="${request.displayName}" class="request-avatar">
+        <div class="request-details">
+          <h4 class="request-name">${request.displayName}</h4>
+          <p class="request-username">@${request.username}</p>
+          <p class="request-meta">${request.mutualFriends} mutual friends • ${request.requestDate}</p>
+        </div>
+      </div>
+      <div class="request-actions">
+        <button class="accept-btn spotify-btn-primary" onclick="acceptFriendRequest('${request.id}')">
+          Accept
+        </button>
+        <button class="decline-btn spotify-btn-secondary" onclick="declineFriendRequest('${request.id}')">
+          Decline
+        </button>
+      </div>
+    </div>
+  `).join('');
+
+  requestsList.innerHTML = requestsHTML || '<div class="no-requests">No friend requests</div>';
 }
-  
 
   // Tab switching functionality
   const tabBtns = content.querySelectorAll(".tab-btn");
@@ -1369,6 +1423,92 @@ function toggleRequestsModal() {
     }
   }
 
+  function acceptFriendRequest(requestId) {
+    console.log("Accepting friend request:", requestId);
+
+    // Remove the request from the UI
+    const requestElement = document.querySelector(
+      `[data-request-id="${requestId}"]`
+    );
+    if (requestElement) {
+      requestElement.style.animation = "slideOut 0.3s ease-out forwards";
+      setTimeout(() => {
+        requestElement.remove();
+        updateRequestsBadge();
+      }, 300);
+    }
+
+    // Here you would make an API call to accept the friend request
+    // Example:
+    // fetch('/accept_friend_request', {
+    //   method: 'POST',
+    //   body: JSON.stringify({ requestId }),
+    //   headers: { 'Content-Type': 'application/json' }
+    // });
+
+    showMessage("Friend request accepted!", "success");
+  }
+
+  function declineFriendRequest(requestId) {
+    console.log("Declining friend request:", requestId);
+
+    // Remove the request from the UI
+    const requestElement = document.querySelector(
+      `[data-request-id="${requestId}"]`
+    );
+    if (requestElement) {
+      requestElement.style.animation = "slideOut 0.3s ease-out forwards";
+      setTimeout(() => {
+        requestElement.remove();
+        updateRequestsBadge();
+      }, 300);
+    }
+
+    // Here you would make an API call to decline the friend request
+    // Example:
+    // fetch('/decline_friend_request', {
+    //   method: 'POST',
+    //   body: JSON.stringify({ requestId }),
+    //   headers: { 'Content-Type': 'application/json' }
+    // });
+
+    showMessage("Friend request declined", "info");
+  }
+
+  function updateRequestsBadge() {
+    // Update both floating button badge and modal list
+    const floatingBadge = document.querySelector("#floating-requests-badge");
+    const modalRequestsList = document.querySelector(
+      "#modal-friend-requests-list"
+    );
+
+    let remainingRequests = 0;
+
+    if (modalRequestsList) {
+      remainingRequests = modalRequestsList.querySelectorAll(
+        ".friend-request-item"
+      ).length;
+
+      if (remainingRequests === 0) {
+        modalRequestsList.innerHTML =
+          '<div class="no-requests">No friend requests</div>';
+      }
+    } else {
+      // If modal isn't open, count from dummy data
+      remainingRequests = 3; // This would come from your actual data source
+    }
+
+    if (floatingBadge) {
+      if (remainingRequests === 0) {
+        floatingBadge.style.display = "none";
+      } else {
+        floatingBadge.style.display = "block";
+        floatingBadge.textContent = remainingRequests;
+      }
+    }
+  }
+
+  
   // Function to add a friend
   async function addFriend(friendInput) {
     const addBtn = content.querySelector("#add-friend-btn");
