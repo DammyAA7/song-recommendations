@@ -529,7 +529,7 @@ def send_friend_request():
         # Check if a friend request already exists
         cursor.execute("""
             SELECT EXISTS(
-                SELECT 1 FROM friend_requests
+                SELECT 1 FROM requests
                 WHERE sender_id = %s AND receiver_id = %s
             )
         """, (user_id, friend_id))
