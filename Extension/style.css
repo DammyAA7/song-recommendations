@@ -37,92 +37,6 @@
   transform: none;
 }
 
-/* Spotify Popup Styles */
-.spotify-popup {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.popup-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(4px);
-}
-
-.popup-container {
-  background: #121212;
-  border-radius: 12px;
-  width: 400px;
-  height: 600px;
-  position: relative;
-  z-index: 10001;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-  border: 1px solid #282828;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.popup-header-controls {
-  flex-shrink: 0;
-  display: flex;
-  justify-content: flex-end;
-  padding: 16px 16px 0;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: #b3b3b3;
-  font-size: 24px;
-  cursor: pointer;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.close-btn:hover {
-  background: #282828;
-  color: white;
-}
-
-.popup-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden; 
-}
-
-.popup-scrollable-content {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 0 24px 24px;/* Move padding here */
-  /* Hide scrollbar but keep functionality */
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* Internet Explorer 10+ */
-}
-
-/* Hide scrollbar for WebKit browsers (Chrome, Safari, Edge) */
-.popup-scrollable-content::-webkit-scrollbar {
-  display: none;
-}
-
 /* Auth Container */
 .auth-container {
   text-align: center;
@@ -282,39 +196,9 @@
   background: #1a1a1a;
 }
 
-.friend-avatar {
-  position: relative;
-  margin-right: 12px;
-}
-
-.friend-avatar img {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
-}
-
-.friend-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.friend-name {
-  color: white;
-  font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 2px;
-}
-
-.friend-status {
-  color: #b3b3b3;
-  font-size: 12px;
 }
 
 .recommend-btn {
@@ -347,91 +231,6 @@
   margin-bottom: 24px;
 }
 
-.recommendation-person {
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid #282828;
-}
-
-.person-header {
-  display: flex;
-  align-items: center;
-  padding: 12px;
-  background: #1a1a1a;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.person-header:hover {
-  background: #222;
-}
-
-.expand-btn {
-  background: none;
-  border: none;
-  color: #b3b3b3;
-  font-size: 12px;
-  cursor: pointer;
-  padding: 4px 8px;
-  transition: color 0.2s ease;
-}
-
-.expand-btn:hover {
-  color: white;
-}
-
-.songs-list {
-  background: #0f0f0f;
-  border-top: 1px solid #282828;
-}
-
-.songs-list.hidden {
-  display: none;
-}
-
-.song-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid #1a1a1a;
-  transition: background 0.2s ease;
-}
-
-.song-item:last-child {
-  border-bottom: none;
-}
-
-.song-item:hover {
-  background: #1a1a1a;
-}
-
-.song-info {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  max-width: 200px;
-}
-
-.song-title {
-  color: white;
-  font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 2px;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  white-space: normal;
-  line-height: 1.2;
-}
-
-.song-artist {
-  color: #b3b3b3;
-  font-size: 12px;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  white-space: normal;
-  line-height: 1.2;
-}
 
 .song-status {
   display: flex;
@@ -567,97 +366,6 @@
   display: none;
 }
 
-
-.song-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #1a1a1a;
-  transition: background 0.2s ease;
-  gap: 12px;
-}
-
-.song-item:last-child {
-  border-bottom: none;
-}
-
-.song-item:hover {
-  background: #1a1a1a;
-}
-
-/* Album Cover */
-.song-album-cover {
-  flex-shrink: 0;
-}
-
-.album-cover {
-  width: 50px;
-  height: 50px;
-  border-radius: 8px;
-  object-fit: cover;
-  background: #282828;
-}
-
-/* Song Details Container */
-.song-details {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: space-between;
-  min-width: 0; /* Allows text to shrink */
-}
-
-.song-info {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0; /* Allow text truncation */
-  margin-right: 12px;
-}
-
-.song-title {
-  color: white;
-  font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.song-artist {
-  color: #b3b3b3;
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Song Actions */
-.song-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.like-btn,
-.dislike-btn,
-.play-btn {
-  background: none;
-  border: none;
-  color: #b3b3b3;
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 50%;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-}
-
 .like-btn:hover,
 .dislike-btn:hover {
   background: rgba(255, 255, 255, 0.1);
@@ -688,23 +396,6 @@
 .dislike-btn.active:hover {
   color: #ff5252;
   background: rgba(255, 107, 107, 0.2);
-}
-
-/* No recommendations message */
-.no-recommendations-message {
-  text-align: center;
-  padding: 40px 20px;
-  color: #b3b3b3;
-}
-
-.no-recommendations-message p {
-  margin: 0 0 8px;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.no-recommendations-message p:last-child {
-  margin-bottom: 0;
 }
 
 /* Responsive adjustments for smaller screens */
@@ -759,35 +450,6 @@
     transform: scale(1);
   }
 }
-
-.message-content {
-  color: white;
-  padding: 12px 16px;
-  border-radius: 6px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  animation: slideDown 0.5s ease-out;
-  transform-origin: center;
-  overflow: hidden;
-  position: relative;
-  margin-bottom: 16px;
-
-}
-
-.message-content.success {
-  background: #22c55e;
-}
-
-.message-content.error {
-  background: #ef4444;
-}
-
-.message-content.slide-up {
-  animation: slideUp 0.5s ease-in forwards;
-}
-
 
 /* Floating Friend Requests Button */
 .floating-requests-btn {

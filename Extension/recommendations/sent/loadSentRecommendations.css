@@ -1,0 +1,177 @@
+/* No recommendations message */
+.no-recommendations-message {
+  text-align: center;
+  padding: 40px 20px;
+  color: #b3b3b3;
+}
+
+.no-recommendations-message p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.no-recommendations-message p:last-child {
+  margin-bottom: 0;
+}
+
+.recommendation-person {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #282828;
+}
+
+.person-header {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  background: #1a1a1a;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.person-header:hover {
+  background: #222;
+}
+
+.friend-avatar {
+  position: relative;
+  margin-right: 12px;
+}
+
+.friend-avatar img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.friend-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.friend-name {
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.friend-song-count {
+  color: #b3b3b3;
+  font-size: 12px;
+}
+
+.expand-btn {
+  background: none;
+  border: none;
+  color: #b3b3b3;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color 0.2s ease;
+}
+
+.expand-btn:hover {
+  color: white;
+}
+
+.songs-list {
+  background: #0f0f0f;
+  border-top: 1px solid #282828;
+}
+
+.songs-list.hidden {
+  display: none;
+}
+
+.song-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #1a1a1a;
+  transition: background 0.2s ease;
+}
+
+.song-item:last-child {
+  border-bottom: none;
+}
+
+.song-item:hover {
+  background: #1a1a1a;
+}
+
+.song-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  max-width: 200px;
+}
+
+.song-title {
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 2px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.song-artist {
+  color: #b3b3b3;
+  font-size: 12px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.song-details {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0; /* Allows text to shrink */
+}
+
+.song-album-cover {
+  flex-shrink: 0;
+}
+
+.album-cover {
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #282828;
+}
+
+.song-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.like-btn,
+.dislike-btn,
+.play-btn {
+  background: none;
+  border: none;
+  color: #b3b3b3;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+

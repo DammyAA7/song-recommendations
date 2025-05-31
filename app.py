@@ -705,7 +705,6 @@ def get_friend_requests():
         cursor.close()
         conn.close()
     
-
 def find_mutuals(user_id, friend_id):
     """
     Find mutual friends between two users.
