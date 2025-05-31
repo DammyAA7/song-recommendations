@@ -680,6 +680,7 @@ def get_user_recommendations():
             WHERE song_id = ANY(%s) 
         """, (all_ids,))
         song_rows = cursor.fetchall()
+        print("Songs recs: {song_rows}")
         # Build a lookup map
         song_map = { song['song_id']: song for song in song_rows }
         output = []
