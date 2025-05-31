@@ -9,7 +9,6 @@ import os, secrets
 import time
 from datetime import timedelta, datetime
 from functools import wraps
-from itertools import islice
 
 
 # Initialize the Flask application
@@ -59,11 +58,6 @@ def get_db_connection():
     conn = psycopg2.connect(database_url)
     conn.cursor_factory = DictCursor
     return conn
-
-# Yield chunks of a specified size from an iterable
-def chunked(iterable, size):
-    it = iter(iterable)
-    return iter(lambda: list(islice(it, size)), [])
 
 def refresh_access_token():
     refresh_token = session.get('refresh_token')
@@ -490,108 +484,250 @@ def get_following_artists():
     return jsonify(resp.json())
 
 
-@app.route('/add_friend', methods=['POST'])
+@app.route('/send_friend_request', methods=['POST'])
 @ensure_token  # Ensure the access token is valid before proceeding
-def add_friend():
-
+def send_friend_request():
     access_token = session.get('access_token')
     user_id = session.get('user_id')
     if not access_token:
         return jsonify({'error': 'not_authenticated'}), 401
     if not user_id:
         return jsonify({'error': 'user_id_not_found'}), 401
-   
+    
     # Check if the request contains a friend_id
     friend_id = request.json.get('friend_id')
     if not friend_id:
         return jsonify({'error': 'friend_id_required'}), 400
     if user_id == friend_id:
         return jsonify({'error': 'cannot_add_yourself'}), 400
-
-    # Check if user follows the friend
-    # Spotify API does not support API for listing friends friends, but we can check if the user follows them
-    # In reality, this is a workaround to simulate "friends" by checking if the user follows another user
-    params = {'type': 'user','ids': friend_id}
-    resp = requests.get(
-        'https://api.spotify.com/v1/me/following/contains?',
-        headers={'Authorization': f'Bearer {access_token}'},
-        params=params
-    )
-
-    if resp.status_code != 200:
-        return jsonify({'error': 'spotify_api_error', 'details': resp.json()}), resp.status_code
-    follows = resp.json()
-    if not follows[0]:
-        return jsonify({'error': 'not_following_friend'}), 400
-    
-    # If the user follows the friend, we can add them to our friends list
-    # If user does not exist in the database, we create a new entry
-    profile_resp = requests.get(
-        'https://api.spotify.com/v1/users/' + friend_id,
-        headers={'Authorization': f'Bearer {access_token}'}
-    )
-    # Check if the profile request was successful
-    profile = profile_resp.json()
-    if profile_resp.status_code != 200:
-        return jsonify({'error': 'spotify_api_error', 'details': profile}), profile_resp.status_code
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    try:
-        # Check if user is already a friend
-        cursor.execute("""
-            SELECT 1 FROM friends WHERE user_id = %s AND friend_id = %s
-        """, (user_id, friend_id))
-        friend_exists1 = cursor.fetchone()
-        
-        cursor.execute("""
-            SELECT 1 FROM friends WHERE user_id = %s AND friend_id = %s
-        """, (friend_id, user_id))
-        friend_exists2 = cursor.fetchone()
-        
-        if friend_exists1 or friend_exists2:
-            return jsonify({'error': 'friend_already_exists'}), 400
-        
-        # Insert or update the user in the database
-        cursor.execute("""
-            INSERT INTO users (
-                spotify_user_id,
-                spotify_display_name,
-                spotify_avatar_url
-            ) VALUES (%s, %s, %s) ON CONFLICT(spotify_user_id) DO UPDATE SET
-                spotify_display_name = EXCLUDED.spotify_display_name,
-                spotify_avatar_url   = EXCLUDED.spotify_avatar_url
-        """, (
-            profile['id'],
-            profile.get('display_name'),
-            (profile.get('images') or [{}])[0].get('url')
-        ))
 
-        # Create a new entry in the friends table (bidirectional relationship)
+    try:
+        #Check if user exists in the database
         cursor.execute("""
-            INSERT INTO friends (user_id, friend_id) VALUES (%s, %s)
+            SELECT EXISTS(
+                SELECT 1 FROM users WHERE spotify_user_id = %s
+            )
+        """, (friend_id,))
+        if not cursor.fetchone()[0]:
+            return jsonify({'error': 'friend_not_found'}), 404
+        
+        # Check if user is already friends
+        cursor.execute("""
+            SELECT EXISTS(
+                SELECT 1 FROM friends
+                WHERE (user_id = %s AND friend_id = %s)
+                    OR (user_id = %s AND friend_id = %s)
+            )
+        """, (user_id, friend_id, friend_id, user_id))
+        
+        if cursor.fetchone()[0]:
+            return jsonify({'error': 'already_friends'}), 400
+        
+        # Check if a friend request already exists
+        cursor.execute("""
+            SELECT EXISTS(
+                SELECT 1 FROM friend_requests
+                WHERE sender_id = %s AND receiver_id = %s
+            )
         """, (user_id, friend_id))
         
+        if cursor.fetchone()[0]:
+            return jsonify({'error': 'friend_request_already_sent'}), 400
+        
+        # Insert the friend request into the database
         cursor.execute("""
-            INSERT INTO friends (user_id, friend_id) VALUES (%s, %s)
-        """, (friend_id, user_id))
+            INSERT INTO requests (sender_id, receiver_id) 
+            VALUES (%s, %s)
+        """, (user_id, friend_id))
         
         conn.commit()
         
-        return jsonify({
-            'message': 'friend_added',
-            'friend': {
-                'user_id': user_id,
-                'spotify_user_id': profile['id'],
-                'display_name': profile.get('display_name'),
-                'avatar_url': (profile.get('images') or [{}])[0].get('url')
-            }
-        }), 201
-        
+        return jsonify({'message': 'Friend request sent successfully!'}), 201
     except Exception as e:
         conn.rollback()
-        print(f"Error adding friend: {e}")
+        print(f"Error sending friend request: {e}")
         return jsonify({'error': 'database_error'}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/accept_friend_request', methods=['POST'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def accept_friend_request():
+    access_token = session.get('access_token')
+    user_id = session.get('user_id')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 401
+    
+    # Check if the request contains a sender_id
+    sender_id = request.json.get('sender_id')
+    if not sender_id:
+        return jsonify({'error': 'sender_id_required'}), 400
+    if user_id == sender_id:
+        return jsonify({'error': 'cannot_accept_yourself'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Check if the friend request exists
+        cursor.execute("""
+            SELECT EXISTS(
+                SELECT 1 FROM requests
+                WHERE sender_id = %s AND receiver_id = %s
+            )
+        """, (sender_id, user_id))
+        
+        if not cursor.fetchone()[0]:
+            return jsonify({'error': 'friend_request_not_found'}), 404
+        
+        # Insert the new friendship into the friends table (bidirectional relationship)
+        cursor.execute("""
+            INSERT INTO friends (user_id, friend_id) VALUES (%s, %s)
+        """, (user_id, sender_id))
+        
+        cursor.execute("""
+            INSERT INTO friends (user_id, friend_id) VALUES (%s, %s)
+        """, (sender_id, user_id))
+        
+        # Delete the friend request from the requests table
+        cursor.execute("""
+            DELETE FROM requests 
+            WHERE sender_id = %s AND receiver_id = %s
+        """, (sender_id, user_id))
+        
+        conn.commit()
+        
+        return jsonify({'message': 'Friend request accepted successfully!'}), 200
+    except Exception as e:
+        conn.rollback()
+        print(f"Error accepting friend request: {e}")
+        return jsonify({'error': 'database_error'}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/decline_friend_request', methods=['POST'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def decline_friend_request():
+    access_token = session.get('access_token')
+    user_id = session.get('user_id')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 401
+    
+    # Check if the request contains a sender_id
+    sender_id = request.json.get('sender_id')
+    if not sender_id:
+        return jsonify({'error': 'sender_id_required'}), 400
+    if user_id == sender_id:
+        return jsonify({'error': 'cannot_decline_yourself'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Check if the friend request exists
+        cursor.execute("""
+            SELECT EXISTS(
+                SELECT 1 FROM requests
+                WHERE sender_id = %s AND receiver_id = %s
+            )
+        """, (sender_id, user_id))
+        
+        if not cursor.fetchone()[0]:
+            return jsonify({'error': 'friend_request_not_found'}), 404
+        
+        # Delete the friend request from the requests table
+        cursor.execute("""
+            DELETE FROM requests 
+            WHERE sender_id = %s AND receiver_id = %s
+        """, (sender_id, user_id))
+        
+        conn.commit()
+        
+        return jsonify({'message': 'Friend request declined successfully!'}), 200
+    except Exception as e:
+        conn.rollback()
+        print(f"Error declining friend request: {e}")
+        return jsonify({'error': 'database_error'}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/friend_requests', methods=['GET'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def get_friend_requests():
+    access_token = session.get('access_token')
+    user_id = session.get('user_id')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 401
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Retrieve friend requests for the user
+        cursor.execute("""
+            SELECT r.sender_id, r.created_at, 
+                   u.spotify_display_name, u.spotify_avatar_url
+            FROM requests r
+            JOIN users u ON r.sender_id = u.spotify_user_id
+            WHERE receiver_id = %s
+        """, (user_id,))
+        
+        requests = cursor.fetchall()
+        
+        # Convert the result to a list of dictionaries
+        requests_list = [{
+            'sender_id': req['sender_id'],
+            'created_at': req['created_at'].isoformat(),  # Convert datetime to ISO format
+            'display_name': req['spotify_display_name'],
+            'avatar_url': req['spotify_avatar_url'],
+            'mutual_friends': find_mutuals(user_id, req['sender_id'])  # Count mutual friends
+        } for req in requests]
+        
+        return jsonify(requests_list)
+        
+    except Exception as e:
+        print(f"Error retrieving friend requests: {e}")
+        return jsonify({'error': 'database_error'}), 500
+        
+    finally:
+        cursor.close()
+        conn.close()
+    
+
+def find_mutuals(user_id, friend_id):
+    """
+    Find mutual friends between two users.
+    Returns a list of mutual friend IDs.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            SELECT f2.friend_id
+            FROM friends f1
+            JOIN friends f2 ON f1.friend_id = f2.user_id
+            WHERE f1.user_id = %s AND f2.friend_id != %s
+        """, (user_id, friend_id))
+        
+        mutuals = cursor.fetchall()
+        return len(mutuals)
+        
+    except Exception as e:
+        print(f"Error finding mutual friends: {e}")
+        return []
         
     finally:
         cursor.close()
@@ -688,6 +824,7 @@ def get_user_recommendations():
             track = song_map.get(row['song_id'])
 
             if not track:
+                print(f"Missing song {row['song_id']} in local database")
                 continue
 
             output.append({

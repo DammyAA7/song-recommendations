@@ -632,7 +632,6 @@ function showPopupFriends() {
   }
 
   function getStatusIndicator(likeDislike) {
-    console.log("Like status:", likeDislike);
     if (likeDislike === true) {
       return `
             <div class="status-indicator liked">
@@ -1326,11 +1325,11 @@ function showPopupFriends() {
 
     // Disable button and show loading state
     addBtn.disabled = true;
-    addBtn.textContent = "Adding...";
+    addBtn.textContent = "Sending Request...";
 
     try {
       const response = await fetch(
-        "https://recspot-e6585868d70b.herokuapp.com/add_friend",
+        "https://recspot-e6585868d70b.herokuapp.com/send_friend_request",
         {
           method: "POST",
           headers: {
@@ -1572,7 +1571,6 @@ function loadModalFriendRequests() {
   const dummyRequests = [
     {
       id: "req_001",
-      username: "musiclover23",
       displayName: "Alex Johnson",
       profileImage: "https://i.pravatar.cc/150?img=1",
       mutualFriends: 5,
@@ -1580,7 +1578,6 @@ function loadModalFriendRequests() {
     },
     {
       id: "req_001",
-      username: "musiclover23",
       displayName: "Alex Johnson",
       profileImage: "https://i.pravatar.cc/150?img=1",
       mutualFriends: 5,
@@ -1588,7 +1585,6 @@ function loadModalFriendRequests() {
     },
     {
       id: "req_001",
-      username: "musiclover23",
       displayName: "Alex Johnson",
       profileImage: "https://i.pravatar.cc/150?img=1",
       mutualFriends: 5,
@@ -1596,7 +1592,6 @@ function loadModalFriendRequests() {
     },
     {
       id: "req_001",
-      username: "musiclover23",
       displayName: "Alex Johnson",
       profileImage: "https://i.pravatar.cc/150?img=1",
       mutualFriends: 5,
@@ -1604,7 +1599,6 @@ function loadModalFriendRequests() {
     },
     {
       id: "req_002",
-      username: "indievibes",
       displayName: "Sarah Chen",
       profileImage: "https://i.pravatar.cc/150?img=2",
       mutualFriends: 2,
@@ -1612,7 +1606,6 @@ function loadModalFriendRequests() {
     },
     {
       id: "req_003",
-      username: "rockfan2024",
       displayName: "Mike Rodriguez",
       profileImage: "https://i.pravatar.cc/150?img=3",
       mutualFriends: 8,
@@ -1629,7 +1622,6 @@ function loadModalFriendRequests() {
         <img src="${request.profileImage}" alt="${request.displayName}" class="request-avatar">
         <div class="request-details">
           <h4 class="request-name">${request.displayName}</h4>
-          <p class="request-username">@${request.username}</p>
           <p class="request-meta">${request.mutualFriends} mutual friends • ${request.requestDate}</p>
         </div>
       </div>
