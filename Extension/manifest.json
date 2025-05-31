@@ -15,6 +15,18 @@
     {
         "matches": ["https://open.spotify.com/*"],
         "js": [
+            "friends/loadFriends.js",
+            "friends/recommendSongToFriend.js",
+            "friends/sendFriendRequest.js",
+            "recommendations/sent/cleanupSentRecommendations.js",
+            "recommendations/sent/loadSentRecommendations.js",
+            "recommendations/sent/getStatusIndicator.js",
+            "recommendations/sent//loadSentRecommendationsSmooth.js",
+            "recommendations/received/cleanupReceivedRecommendations.js",
+            "recommendations/received/loadReceivedRecommendationsSmooth.js",
+            "recommendations/received/setupRecommendationActions.js",
+            "recommendations/received/initializeReceivedRecommendations.js",
+            "recommendations/received/loadReceivedRecommendations.js",
             "core/addRecommendButton.js",
             "core/closePopup.js",
             "core/handleRecommendClick.js",
@@ -22,12 +34,18 @@
             "core/observeChanges.js",
             "utils/showMessage.js",
             "utils/extractSpotifyUsername.js",
+            "utils/getSongId.js",
+            "utils/getCurrentlyPlayingSong.js",
             "popup/createBasePopup.js",
+            "popup/showPopupAuth.js",
+            "popup/showPopupFriends.js",
             "content.js"
         ],
         "css": [
             "utils/showMessage.css",
-            "popup/createBasePopup.css",
+            "friends/friends.css",
+            "recommendations/recommendations.css",
+            "popup/popup.css",
             "style.css"
         ]
     }

@@ -1,0 +1,53 @@
+.no-friends-message,
+.error-message,
+.loading-message {
+  text-align: center;
+  padding: 40px 20px;
+  color: #b3b3b3;
+}
+
+.no-friends-message p,
+.error-message p,
+.loading-message {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.friend-item {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+.friend-item:hover {
+  background: #1a1a1a;
+}
+
+.recommend-btn {
+  background: #1db954;
+  border: none;
+  border-radius: 16px;
+  color: white;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 60px;
+}
+
+.recommend-btn:hover:not(:disabled) {
+  background: #1ed760;
+}
+
+.recommend-btn:disabled {
+  background: #535353;
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: #ff6b6b;
+}
