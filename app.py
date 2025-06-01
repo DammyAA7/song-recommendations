@@ -2,18 +2,36 @@ from flask import Flask, jsonify, request, session
 import requests
 from flask_session import Session
 from flask_cors import CORS
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from urllib.parse import urlencode
 import psycopg2
 from psycopg2.extras import DictCursor
 import os, secrets
 import time
 from datetime import timedelta, datetime
+from supabase import create_client, Client
 from functools import wraps
 
+# Store active connections and their subscriptions
+active_connections = {}
+user_subscriptions = {}
 
 # Initialize the Flask application
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET_KEY", 'dev-key-change-in-production')
+
+# Initialize SocketIO with CORS support
+socketio = SocketIO(app, 
+                   cors_allowed_origins=["https://open.spotify.com", 
+                                       "chrome-extension://ijageeaiiaemphkdojoopbmphopjoipk", 
+                                       "https://recspot-e6585868d70b.herokuapp.com"],
+                   allow_credentials=True)
+
+# Initialize Supabase client
+supabase: Client = create_client(
+    os.environ.get("DATABASE_URL", "your-supabase-url"),
+    os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "your-service-role-key")
+)
 
 # ---------------- Session Configuration ----------------
 
@@ -45,6 +63,122 @@ CORS(app,
      allow_headers=["Content-Type", "Authorization"],
      methods=["GET", "POST", "OPTIONS", "DELETE"])
 
+@socketio.on('connect')
+def handle_connect():
+    user_id = session.get('user_id')
+    if not user_id:
+        print("Connection attempt without user_id in session")
+        return False
+    print(f"User {user_id} connected via SocketIO")
+    print(f'Client connected: {request.sid}')
+    emit('connected', {'message': 'Connected to real-time updates'})
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    user_id = session.get('user_id')
+    if not user_id:
+        print("Disconnect attempt without user_id in session")
+        return
+    print(f"User {user_id} disconnected from SocketIO")
+    print(f'Client disconnected: {request.sid}')
+    
+    # Clean up active connections
+    if request.sid in active_connections:
+        del active_connections[request.sid]
+        cleanup_user_subscription(user_id, request.sid)
+        print(f"Removed connection for {request.sid}")
+
+@socketio.on('subscribe_friend_requests')
+def handle_subscribe_friend_requests():
+    user_id = session.get('user_id')
+    if not user_id:
+        print("Subscription attempt without user_id in session")
+        return
+    
+    try:
+        # Join room for this user
+        join_room(f"user_{user_id}")
+        active_connections[request.sid] = user_id
+        
+        # Set up Supabase real-time subscription
+        setup_realtime_subscription(user_id)
+        
+        emit('subscribed', {'message': f'Subscribed to friend requests for user {user_id}'})
+        print(f'User {user_id} subscribed to friend requests')
+        
+    except Exception as e:
+        print(f'Error setting up subscription: {e}')
+        emit('error', {'message': 'Failed to set up real-time subscription'})
+
+@socketio.on('unsubscribe_friend_requests')
+def handle_unsubscribe_friend_requests():
+    user_id = session.get('user_id')
+    if user_id:
+        leave_room(f"user_{user_id}")
+        cleanup_user_subscription(user_id, request.sid)
+        emit('unsubscribed', {'message': 'Unsubscribed from friend requests'})
+
+def setup_realtime_subscription(user_id):
+    """Set up real-time subscription for a specific user's friend requests"""
+    
+    # Avoid duplicate subscriptions
+    if user_id in user_subscriptions:
+        return
+    
+    def handle_friend_request_change(payload):
+        """Handle changes to friend requests table"""
+        try:
+            event_type = payload.get('eventType')
+            new_record = payload.get('new', {})
+            old_record = payload.get('old', {})
+            
+            print(f'Friend request change detected: {event_type} for user {user_id}')
+            
+            # Only process if this change affects the subscribed user
+            if (event_type == 'INSERT' and new_record.get('receiver_id') == user_id) or \
+               (event_type in ['UPDATE', 'DELETE'] and old_record.get('receiver_id') == user_id):
+                
+                # Emit the change to the specific user's room
+                socketio.emit('friend_request_update', {
+                    'eventType': event_type,
+                    'new': new_record,
+                    'old': old_record,
+                    'user_id': user_id
+                }, room=f"user_{user_id}")
+                
+        except Exception as e:
+            print(f'Error handling friend request change: {e}')
+    
+    try:
+        # Create subscription for friend requests table
+        # Filter for requests where receiver_id matches the user
+        subscription = supabase.table('requests') \
+                             .on('*', handle_friend_request_change) \
+                             .filter('receiver_id', 'eq', user_id) \
+                             .subscribe()
+        
+        user_subscriptions[user_id] = subscription
+        print(f'Real-time subscription created for user {user_id}')
+        
+    except Exception as e:
+        print(f'Error creating Supabase subscription: {e}')
+
+def cleanup_user_subscription(user_id, connection_id):
+    """Clean up subscription when user disconnects"""
+    try:
+        if user_id in user_subscriptions:
+            subscription = user_subscriptions[user_id]
+
+            other_connections = [sid for sid, uid in active_connections.items() 
+                                if uid == user_id and sid != connection_id]
+            
+            if not other_connections:
+                        subscription.unsubscribe()
+                        del user_subscriptions[user_id]
+                        print(f'Cleaned up subscription for user {user_id}')
+                
+    except Exception as e:
+        print(f'Error cleaning up subscription: {e}')
 # Function to establish a connection to the Postgres database
 def get_db_connection():
     
@@ -1257,4 +1391,9 @@ def debug_session():
     
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    socketio.run(app, 
+                 host='0.0.0.0', 
+                 port=port, 
+                 debug=False,
+                 allow_unsafe_werkzeug=True # Add this for Heroku deployment
+                 )

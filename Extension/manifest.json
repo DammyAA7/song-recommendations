@@ -38,6 +38,7 @@
             "utils/getSongId.js",
             "utils/getCurrentlyPlayingSong.js",
             "utils/updateRequestsBadge.js",
+            "popup/FriendRequestsManager.js",
             "popup/createBasePopup.js",
             "popup/showPopupAuth.js",
             "popup/showPopupFriends.js",
