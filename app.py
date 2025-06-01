@@ -661,6 +661,49 @@ def decline_friend_request():
         cursor.close()
         conn.close()
 
+@app.route('/get_user_profile', methods=['GET'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def get_user_profile():
+    access_token = session.get('access_token')
+    user_id = session.get('user_id')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 401
+    
+    other_user_id = request.args.get('user_id')
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Retrieve user profile from the database
+        cursor.execute("""
+            SELECT spotify_user_id, spotify_display_name, spotify_email, spotify_avatar_url
+            FROM users
+            WHERE spotify_user_id = %s
+        """, (other_user_id,))
+        
+        user_profile = cursor.fetchone()
+        
+        if not user_profile:
+            return jsonify({'error': 'user_not_found'}), 404
+        
+        return jsonify({
+            'spotify_user_id': user_profile['spotify_user_id'],
+            'display_name': user_profile['spotify_display_name'],
+            'email': user_profile['spotify_email'],
+            'avatar_url': user_profile['spotify_avatar_url']
+        })
+        
+    except Exception as e:
+        print(f"Error retrieving user profile: {e}")
+        return jsonify({'error': 'database_error'}), 500
+        
+    finally:
+        cursor.close()
+        conn.close()
+
 @app.route('/friend_requests', methods=['GET'])
 @ensure_token  # Ensure the access token is valid before proceeding
 def get_friend_requests():
@@ -732,6 +775,27 @@ def find_mutuals(user_id, friend_id):
         cursor.close()
         conn.close()
 
+
+@app.route('get_mutual_friends', methods=['GET'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def get_mutual_friends():
+    access_token = session.get('access_token')
+    user_id = session.get('user_id')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 401
+    
+    # Check if the request contains a friend_id
+    sender_id = request.args.get('sender_id')
+    if not sender_id:
+        return jsonify({'error': 'friend_id_required'}), 400
+    if user_id == sender_id:
+        return jsonify({'error': 'cannot_get_mutuals_with_yourself'}), 400
+    
+    mutuals_count = find_mutuals(user_id, sender_id)
+    
+    return jsonify({'mutual_friends_count': mutuals_count})
 @app.route('/list_friends', methods=['GET'])
 @ensure_token  # Ensure the access token is valid before proceeding
 def list_friends():

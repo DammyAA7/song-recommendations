@@ -2,7 +2,7 @@
 "manifest_version": 3,
 "name": "Recspot",
 "version": "1.0",
-"description": "A Chrome extension that recommends songs based on the current song playing on Spotify.",
+"description": "A Chrome extension that recommends songs to your friends based on the current song playing on Spotify.",
 "permissions": [
     "activeTab",
     "scripting"
@@ -37,12 +37,17 @@
             "utils/extractSpotifyUsername.js",
             "utils/getSongId.js",
             "utils/getCurrentlyPlayingSong.js",
+            "utils/updateRequestsBadge.js",
             "popup/createBasePopup.js",
             "popup/showPopupAuth.js",
             "popup/showPopupFriends.js",
+            "auth/handleAuthFlow.js",
+            "auth/checkAuthStatus.js",
+            "auth/handleAuthWindow.js",
             "content.js"
         ],
         "css": [
+            "core/recommendButton.css",
             "utils/showMessage.css",
             "friends/friends.css",
             "recommendations/recommendations.css",
@@ -52,6 +57,6 @@
     }
 ],
 "action":{
-    "default_title": "Song Recommendor"
+    "default_title": "Recspot"
 }
 }

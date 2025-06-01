@@ -1,0 +1,38 @@
+.custom-spotify-btn {
+  background: linear-gradient(135deg, #1db954, #1ed760);
+  border: none;
+  border-radius: 50px;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(29, 185, 84, 0.3);
+  z-index: 9999;
+  position: relative;
+  white-space: nowrap;
+}
+
+.custom-spotify-btn:hover {
+  background: linear-gradient(135deg, #1ed760, #1fdf64);
+  box-shadow: 0 4px 12px rgba(29, 185, 84, 0.4);
+  transform: translateY(-1px);
+}
+
+.custom-spotify-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(29, 185, 84, 0.3);
+}
+
+.custom-spotify-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.custom-button-wrapper {
+  display: flex;
+  align-items: center;
+  margin-left: 1px;
+}
