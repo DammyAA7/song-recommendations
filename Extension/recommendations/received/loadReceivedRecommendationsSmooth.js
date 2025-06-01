@@ -1,5 +1,5 @@
 async function loadReceivedRecommendationsSmooth() {
-    const receivedContainer = content.querySelector(
+    const receivedContainer = document.querySelector(
       "#received-recommendations"
     );
 

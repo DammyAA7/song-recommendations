@@ -17,7 +17,7 @@ function showPopupFriends() {
           <div class="add-friend-section">
             <div class="add-friend-form">
               <input type="text" id="friend-input" placeholder="Enter Spotify username URL" class="friend-input">
-              <button id="add-friend-btn" class="spotify-btn-primary">Add Friend</button>
+              <button id="add-friend-btn" class="spotify-btn-primary">Send Request</button>
             </div>
           </div>
           <div class="friends-list" id="friends-list">
@@ -51,6 +51,8 @@ function showPopupFriends() {
       </div>
     </div>
   `;
+
+  document.body.appendChild(popup);  
 
   // Load friends when the popup opens
   loadFriends();
@@ -163,7 +165,7 @@ function showPopupFriends() {
       console.error("Logout error:", error);
     }
   });
-
-  document.body.appendChild(popup);  
  
 }
+
+window.showPopupFriends = showPopupFriends;

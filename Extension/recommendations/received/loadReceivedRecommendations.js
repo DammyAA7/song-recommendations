@@ -1,5 +1,5 @@
 async function loadReceivedRecommendations() {
-  const receivedContainer = content.querySelector("#received-recommendations");
+  const receivedContainer = document.querySelector("#received-recommendations");
 
   try {
     const response = await fetch(

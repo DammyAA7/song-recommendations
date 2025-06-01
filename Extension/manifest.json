@@ -21,6 +21,7 @@
             "recommendations/sent/cleanupSentRecommendations.js",
             "recommendations/sent/loadSentRecommendations.js",
             "recommendations/sent/getStatusIndicator.js",
+            "recommendations/sent/initializeSentRecommendations.js",
             "recommendations/sent//loadSentRecommendationsSmooth.js",
             "recommendations/received/cleanupReceivedRecommendations.js",
             "recommendations/received/loadReceivedRecommendationsSmooth.js",

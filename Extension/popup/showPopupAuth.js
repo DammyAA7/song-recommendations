@@ -47,3 +47,5 @@ function showPopupAuth() {
 
   document.body.appendChild(popup);
 }
+
+window.showPopupAuth = showPopupAuth;
