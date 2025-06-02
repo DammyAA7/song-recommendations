@@ -12,6 +12,19 @@ async function handleRecommendClick() {
     button.innerHTML = "Loading...";
     button.disabled = true;
 
+    response = await fetch(
+      "https://recspot-e6585868d70b.herokuapp.com/get_user_id",
+      {
+        method: "GET",
+        credentials: "include",
+      }
+    );
+    if (!response.ok) {
+      console.error("Failed to get user ID:", response.statusText);
+    } else{
+      console.log("Session User Id: ", sessionStorage.getItem("user_id"));
+    }
+
     // Check authentication
     const authResponse = await fetch(
       "https://recspot-e6585868d70b.herokuapp.com/check_auth",

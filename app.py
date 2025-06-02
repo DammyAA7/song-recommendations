@@ -587,6 +587,13 @@ def logout():
     print("Session cleared successfully")
     return jsonify({'message': 'Logged out successfully', 'user_id': user_id}), 200
 
+@app.route("/get_user_id", methods=['GET'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def get_user_id():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 404
+    return jsonify({'user_id': user_id}), 200
 
 @app.route('/following', methods=['GET'])
 @ensure_token  # Ensure the access token is valid before proceeding
@@ -908,7 +915,6 @@ def find_mutuals(user_id, friend_id):
     finally:
         cursor.close()
         conn.close()
-
 
 @app.route('get_mutual_friends', methods=['GET'])
 @ensure_token  # Ensure the access token is valid before proceeding
