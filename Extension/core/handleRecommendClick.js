@@ -22,7 +22,7 @@ async function handleRecommendClick() {
     if (!response.ok) {
       console.error("Failed to get user ID:", response.statusText);
     } else{
-      console.log("Session User Id: ", sessionStorage.getItem("user_id"));
+      console.log("Session User Id: ", await response.text());
     }
 
     // Check authentication
