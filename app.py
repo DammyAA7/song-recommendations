@@ -11,6 +11,7 @@ import time
 from datetime import timedelta, datetime
 from supabase import create_client, Client
 from functools import wraps
+from realtime import Socket
 
 # Store active connections and their subscriptions
 active_connections = {}
@@ -150,27 +151,23 @@ def setup_realtime_subscription(user_id):
             print(f'Error handling friend request change: {e}')
     
     try:
-        # Create subscription for friend requests table
-        # Filter for requests where receiver_id matches the user
-        realtime = supabase.realtime
-        # Create a channel on the “public:requests” topic
-        channel_name = f"user_requests_{user_id}"
-        subscription = (
-            realtime
-            .channel(channel_name)               # arbitrary unique name per user
-            .on(
-                event="postgres_changes",
-                opts={
-                    "schema": "public",
-                    "table": "requests",
-                    "filter": f"receiver_id=eq.{user_id}",
-                    "event": "*",
-                },
-                callback=handle_friend_request_change
-            )
-            .subscribe()
-        )
-        user_subscriptions[user_id] = subscription
+        # Create WebSocket connection to Supabase Realtime
+        socket_url = f"{os.environ.get('SUPABASE_URL').replace('https://', 'wss://')}/realtime/v1/websocket"
+        
+        socket = Socket(socket_url, {
+            "params": {
+                "apikey": os.environ.get("SUPABASE_ANON_KEY"),
+                "vsn": "1.0.0"
+            }
+        })
+        
+        socket.connect()
+        
+        channel = socket.channel(f'realtime:public:requests', {})
+        channel.on('postgres_changes', handle_friend_request_change)
+        channel.subscribe()
+        
+        user_subscriptions[user_id] = {"socket": socket, "channel": channel}
         print(f'Real-time subscription created for user {user_id}')
         
     except Exception as e:
