@@ -29,7 +29,7 @@ socketio = SocketIO(app,
 
 # Initialize Supabase client
 supabase: Client = create_client(
-    os.environ.get("DATABASE_URL", "your-supabase-url"),
+    os.environ.get("SUPABASE_URL", "your-supabase-url"),
     os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "your-service-role-key")
 )
 
