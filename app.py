@@ -916,7 +916,7 @@ def find_mutuals(user_id, friend_id):
         cursor.close()
         conn.close()
 
-@app.route('get_mutual_friends', methods=['GET'])
+@app.route('/get_mutual_friends', methods=['GET'])
 @ensure_token  # Ensure the access token is valid before proceeding
 def get_mutual_friends():
     access_token = session.get('access_token')
