@@ -2,15 +2,124 @@ class FriendRequestsManager {
   constructor() {
     this.requestsList = document.querySelector("#modal-friend-requests-list");
     this.cachedRequests = [];
+    this.socket = null;
     this.subscription = null;
     this.isModalOpen = false;
+    this.currentUserId = null;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
     this.reconnectDelay = 1000; // Start with 1 second
   }
 
+  async initializeWebSocket() {
+    try {
+      this.currentUserId = await this.getCurrentUserId();
+      if (!this.currentUserId) {
+        console.error("No current user ID found");
+        return false;
+      }
+
+      const backendUrl = "https://recspot-e6585868d70b.herokuapp.com";
+      this.socket = io(backendUrl, {
+        withCredentials: true,
+        transports: ["websocket", "polling"],
+      });
+
+      this.setupSocketEventListeners();
+      return true;
+    } catch (error) {
+      console.error("Error initializing WebSocket:", error);
+      return false;
+    }
+  }
+
+  setupSocketEventListeners() {
+    if (!this.socket) return;
+
+    // Connection events
+    this.socket.on("connect", () => {
+      console.log("Connected to real-time updates");
+      this.reconnectAttempts = 0;
+      this.reconnectDelay = 1000;
+
+      // Subscribe to friend requests for current user
+      this.socket.emit("subscribe_friend_requests");
+    });
+
+    this.socket.on("disconnect", (reason) => {
+      console.log("Disconnected from real-time updates:", reason);
+
+      // Attempt to reconnect if disconnection was unexpected
+      if (reason === "io server disconnect") {
+        // Server disconnected, don't reconnect automatically
+        showMessage("Connection lost. Please refresh the page.");
+      } else {
+        // Client-side disconnect or network issue, attempt reconnect
+        this.attemptReconnect();
+      }
+    });
+
+    this.socket.on("connect_error", (error) => {
+      console.error("Connection error:", error);
+      this.attemptReconnect();
+    });
+
+    // Subscription events
+    this.socket.on("subscribed", (data) => {
+      console.log("Subscribed to friend requests:", data.message);
+    });
+
+    this.socket.on("error", (data) => {
+      console.error("Socket error:", data.message);
+      showMessage("Real-time updates temporarily unavailable");
+    });
+
+    // Real-time friend request updates
+    this.socket.on("friend_request_update", (payload) => {
+      this.handleRealtimeUpdate(payload);
+    });
+
+    // Additional specific events (optional)
+    this.socket.on("friend_request_accepted", (data) => {
+      showMessage("Friend request accepted!", "success");
+    });
+
+    this.socket.on("friend_request_declined", (data) => {
+      showMessage("Friend request declined");
+    });
+  }
+
+  attemptReconnect() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error("Max reconnection attempts reached");
+      showMessage(
+        "Unable to maintain real-time connection. Please refresh the page.",
+        "error"
+      );
+      return;
+    }
+
+    this.reconnectAttempts++;
+    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
+
+    console.log(
+      `Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`
+    );
+
+    setTimeout(() => {
+      if (this.socket) {
+        this.socket.connect();
+      }
+    }, delay);
+  }
+
   async loadModalFriendRequests() {
     try {
+
+      // Initialize WebSocket if not already done
+      if (!this.socket) {
+        await this.initializeWebSocket();
+      }
       // Initial load from your existing endpoint
       const response = await fetch(
         "https://recspot-e6585868d70b.herokuapp.com/friend_requests",
@@ -24,32 +133,11 @@ class FriendRequestsManager {
       const requests = await response.json();
       this.cachedRequests = requests;
       this.renderRequests();
-
-      // Set up real-time subscription when modal opens
-      if (!this.subscription) {
-        this.setupRealtimeSubscription();
-      }
+      this.updateRequestsBadge();
     } catch (error) {
       console.error("Error loading friend requests:", error);
       this.renderError();
     }
-  }
-
-  setupRealtimeSubscription() {
-    // Subscribe to changes in the requests table
-    this.subscription = supabase
-      .channel("friend-requests-channel")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT", // Listen to INSERT
-          schema: "public",
-          table: "requests",
-          filter: `receiver_id=eq.${this.getCurrentUserId()}`,
-        },
-        (payload) => this.handleRealtimeUpdate(payload)
-      )
-      .subscribe();
   }
 
   async handleRealtimeUpdate(payload) {
@@ -68,6 +156,15 @@ class FriendRequestsManager {
 
   async handleNewRequest(newRecord) {
     try {
+      // Check if we already have this request to avoid duplicates
+      const existingRequest = this.cachedRequests.find(
+        req => req.sender_id === newRecord.sender_id
+      );
+      
+      if (existingRequest) {
+        console.log('Request already exists, skipping duplicate');
+        return;
+      }
       // Fetch complete user data for the new request
       const response = await fetch(
         "https://recspot-e6585868d70b.herokuapp.com/get_user_profile",
@@ -87,20 +184,33 @@ class FriendRequestsManager {
         created_at: newRecord.created_at,
         display_name: userData.spotify_display_name,
         avatar_url: userData.spotify_avatar_url,
-        mutual_friends: await this.getMutualFriendsCount(
-          newRecord.sender_id,
-        ),
+        mutual_friends: await this.getMutualFriendsCount(newRecord.sender_id),
       };
 
       this.cachedRequests.unshift(newRequest); // Add to beginning
       this.renderRequests();
-      this.showNotification(
-        `New friend request from ${userData.spotify_display_name}`
+      this.updateRequestsBadge();
+      showMessage(
+        `New friend request from ${userData.spotify_display_name}`,
+        "success"
       );
     } catch (error) {
       console.error("Error handling new request:", error);
       // Fallback: refresh all requests
       this.loadModalFriendRequests();
+    }
+  }
+
+  handleDeletedRequest(deletedRecord) {
+    const initialLength = this.cachedRequests.length;
+    this.cachedRequests = this.cachedRequests.filter(
+      req => req.sender_id !== deletedRecord.sender_id
+    );
+    
+    // Only re-render if something was actually removed
+    if (this.cachedRequests.length < initialLength) {
+      this.renderRequests();
+      this.updateRequestsBadge();
     }
   }
 
@@ -127,6 +237,8 @@ class FriendRequestsManager {
   }
 
   renderRequests() {
+    if (!this.requestsList) return;
+
     if (!this.cachedRequests.length) {
       this.requestsList.innerHTML =
         '<div class="no-requests">No friend requests</div>';
@@ -141,8 +253,9 @@ class FriendRequestsManager {
   }
 
   renderError() {
-    this.requestsList.innerHTML =
-      '<div class="error-message">Failed to load friend requests</div>';
+    if (this.requestsList) {
+      this.requestsList.innerHTML = '<div class="error-message">Failed to load friend requests</div>';
+    }
   }
 
   createRequestHTML(request) {
@@ -256,11 +369,11 @@ class FriendRequestsManager {
 
   updateRequestsBadge() {
     // Update any badge/counter showing number of pending requests
-    const badge = document.querySelector('.friend-requests-badge');
+    const badge = document.querySelector(".friend-requests-badge");
     if (badge) {
       const count = this.cachedRequests.length;
       badge.textContent = count;
-      badge.style.display = count > 0 ? 'block' : 'none';
+      badge.style.display = count > 0 ? "block" : "none";
     }
   }
 
@@ -310,13 +423,38 @@ class FriendRequestsManager {
   }
 
   cleanup() {
-    if (this.subscription) {
-      if (typeof this.subscription.unsubscribe === 'function') {
-        this.subscription.unsubscribe();
-      } else if (window.supabaseClient && window.supabaseClient.client) {
-        window.supabaseClient.client.removeChannel(this.subscription);
+    if (this.socket) {
+      // Unsubscribe from friend requests
+      if (this.currentUserId) {
+        this.socket.emit("unsubscribe_friend_requests", {
+          user_id: this.currentUserId,
+        });
       }
-      this.subscription = null;
+
+      // Disconnect socket
+      this.socket.disconnect();
+      this.socket = null;
+    }
+  }
+
+  // Utility methods
+  async getCurrentUserId() {
+    // Get current user ID from Chrome storage or your auth system
+    const response = await fetch(
+      "https://recspot-e6585868d70b.herokuapp.com/get_user_id",
+      {
+        method: "GET",
+        credentials: "include",
+      }
+    );
+    if (!response.ok) {
+      console.error("Failed to get user ID:", response.statusText);
+      return null;
+    }
+    const data = await response.json();
+    
+    if (data && data.user_id) {
+      return data.user_id;
     }
   }
 }

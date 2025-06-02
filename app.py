@@ -152,11 +152,24 @@ def setup_realtime_subscription(user_id):
     try:
         # Create subscription for friend requests table
         # Filter for requests where receiver_id matches the user
-        subscription = supabase.table('requests') \
-                             .on('*', handle_friend_request_change) \
-                             .filter('receiver_id', 'eq', user_id) \
-                             .subscribe()
-        
+        realtime = supabase.realtime
+        # Create a channel on the “public:requests” topic
+        channel_name = f"user_requests_{user_id}"
+        subscription = (
+            realtime
+            .channel(channel_name)               # arbitrary unique name per user
+            .on(
+                event="postgres_changes",
+                opts={
+                    "schema": "public",
+                    "table": "requests",
+                    "filter": f"receiver_id=eq.{user_id}",
+                    "event": "*",
+                },
+                callback=handle_friend_request_change
+            )
+            .subscribe()
+        )
         user_subscriptions[user_id] = subscription
         print(f'Real-time subscription created for user {user_id}')
         

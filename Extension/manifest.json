@@ -15,6 +15,7 @@
     {
         "matches": ["https://open.spotify.com/*"],
         "js": [
+            "socket.io.min.js",
             "friends/loadFriends.js",
             "friends/recommendSongToFriend.js",
             "friends/sendFriendRequest.js",
@@ -37,11 +38,11 @@
             "utils/extractSpotifyUsername.js",
             "utils/getSongId.js",
             "utils/getCurrentlyPlayingSong.js",
-            "utils/updateRequestsBadge.js",
             "popup/FriendRequestsManager.js",
             "popup/createBasePopup.js",
             "popup/showPopupAuth.js",
             "popup/showPopupFriends.js",
+            "popup/toggleRequestsModal.js",
             "auth/handleAuthFlow.js",
             "auth/checkAuthStatus.js",
             "auth/handleAuthWindow.js",
