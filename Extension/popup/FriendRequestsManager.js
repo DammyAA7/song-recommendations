@@ -6,12 +6,33 @@ class FriendRequestsManager {
     this.subscription = null;
     this.isModalOpen = false;
     this.currentUserId = null;
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
-    this.reconnectDelay = 1000; // Start with 1 second
+
+    // Set up message listener for background script communications
+    this.setupMessageListener();
   }
 
-  async initializeWebSocket() {
+  setupMessageListener() {
+    // Listen for messages from background script
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      switch (message.type) {
+        case "FRIEND_REQUEST_UPDATE":
+          this.handleRealtimeUpdate(message.payload);
+          break;
+
+        case "REALTIME_SUBSCRIBED":
+          console.log("Successfully subscribed to real-time updates");
+          this.isSubscribed = true;
+          break;
+
+        case "REALTIME_ERROR":
+          console.error("Real-time subscription error:", message.error);
+          showMessage("Real-time updates temporarily unavailable");
+          break;
+      }
+    });
+  }
+
+  async initializeRealtimeSubscription() {
     try {
       this.currentUserId = await this.getCurrentUserId();
       if (!this.currentUserId) {
@@ -19,13 +40,20 @@ class FriendRequestsManager {
         return false;
       }
 
-      const backendUrl = "https://recspot-e6585868d70b.herokuapp.com";
-      this.socket = io(backendUrl, {
-        withCredentials: true,
-        transports: ["websocket", "polling"],
-      });
+      chrome.runtime.sendMessage(
+        {
+          type: "SUBSCRIBE_FRIEND_REQUESTS",
+          userId: this.currentUserId,
+        },
+        (response) => {
+          if (response?.success) {
+            console.log("Subscription request sent to background script");
+          } else {
+            console.error("Failed to send subscription request");
+          }
+        }
+      );
 
-      this.setupSocketEventListeners();
       return true;
     } catch (error) {
       console.error("Error initializing WebSocket:", error);
@@ -33,92 +61,11 @@ class FriendRequestsManager {
     }
   }
 
-  setupSocketEventListeners() {
-    if (!this.socket) return;
-
-    // Connection events
-    this.socket.on("connect", () => {
-      console.log("Connected to real-time updates");
-      this.reconnectAttempts = 0;
-      this.reconnectDelay = 1000;
-
-      // Subscribe to friend requests for current user
-      this.socket.emit("subscribe_friend_requests");
-    });
-
-    this.socket.on("disconnect", (reason) => {
-      console.log("Disconnected from real-time updates:", reason);
-
-      // Attempt to reconnect if disconnection was unexpected
-      if (reason === "io server disconnect") {
-        // Server disconnected, don't reconnect automatically
-        showMessage("Connection lost. Please refresh the page.");
-      } else {
-        // Client-side disconnect or network issue, attempt reconnect
-        this.attemptReconnect();
-      }
-    });
-
-    this.socket.on("connect_error", (error) => {
-      console.error("Connection error:", error);
-      this.attemptReconnect();
-    });
-
-    // Subscription events
-    this.socket.on("subscribed", (data) => {
-      console.log("Subscribed to friend requests:", data.message);
-    });
-
-    this.socket.on("error", (data) => {
-      console.error("Socket error:", data.message);
-      showMessage("Real-time updates temporarily unavailable");
-    });
-
-    // Real-time friend request updates
-    this.socket.on("friend_request_update", (payload) => {
-      this.handleRealtimeUpdate(payload);
-    });
-
-    // Additional specific events (optional)
-    this.socket.on("friend_request_accepted", (data) => {
-      showMessage("Friend request accepted!", "success");
-    });
-
-    this.socket.on("friend_request_declined", (data) => {
-      showMessage("Friend request declined");
-    });
-  }
-
-  attemptReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error("Max reconnection attempts reached");
-      showMessage(
-        "Unable to maintain real-time connection. Please refresh the page.",
-        "error"
-      );
-      return;
-    }
-
-    this.reconnectAttempts++;
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1); // Exponential backoff
-
-    console.log(
-      `Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts})`
-    );
-
-    setTimeout(() => {
-      if (this.socket) {
-        this.socket.connect();
-      }
-    }, delay);
-  }
-
   async loadModalFriendRequests() {
     try {
-
       // Initialize WebSocket if not already done
-      if (!this.socket) {
-        await this.initializeWebSocket();
+      if (!this.isSubscribed && !this.currentUserId) {
+        await this.initializeRealtimeSubscription();
       }
       // Initial load from your existing endpoint
       const response = await fetch(
@@ -151,6 +98,10 @@ class FriendRequestsManager {
       case "DELETE":
         this.handleDeletedRequest(oldRecord);
         break;
+      case "UPDATE":
+        // Handle updates if needed
+        console.log("Friend request updated:", newRecord);
+        break;
     }
   }
 
@@ -158,11 +109,11 @@ class FriendRequestsManager {
     try {
       // Check if we already have this request to avoid duplicates
       const existingRequest = this.cachedRequests.find(
-        req => req.sender_id === newRecord.sender_id
+        (req) => req.sender_id === newRecord.sender_id
       );
-      
+
       if (existingRequest) {
-        console.log('Request already exists, skipping duplicate');
+        console.log("Request already exists, skipping duplicate");
         return;
       }
       // Fetch complete user data for the new request
@@ -204,9 +155,9 @@ class FriendRequestsManager {
   handleDeletedRequest(deletedRecord) {
     const initialLength = this.cachedRequests.length;
     this.cachedRequests = this.cachedRequests.filter(
-      req => req.sender_id !== deletedRecord.sender_id
+      (req) => req.sender_id !== deletedRecord.sender_id
     );
-    
+
     // Only re-render if something was actually removed
     if (this.cachedRequests.length < initialLength) {
       this.renderRequests();
@@ -254,7 +205,8 @@ class FriendRequestsManager {
 
   renderError() {
     if (this.requestsList) {
-      this.requestsList.innerHTML = '<div class="error-message">Failed to load friend requests</div>';
+      this.requestsList.innerHTML =
+        '<div class="error-message">Failed to load friend requests</div>';
     }
   }
 
@@ -452,7 +404,7 @@ class FriendRequestsManager {
       return null;
     }
     const data = await response.json();
-    
+
     if (data && data.user_id) {
       return data.user_id;
     }

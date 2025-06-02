@@ -14,7 +14,7 @@ async function toggleRequestsModal() {
 
   // Initialize WebSocket connection if not already done
   if (window.friendRequestManager && !window.friendRequestManager.socket) {
-    await window.friendRequestManager.initializeWebSocket();
+    await window.friendRequestManager.initializeRealtimeSubscription();
   }
 
   // Create new modal

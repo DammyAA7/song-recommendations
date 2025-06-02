@@ -5,12 +5,17 @@
 "description": "A Chrome extension that recommends songs to your friends based on the current song playing on Spotify.",
 "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "tabs"
 ],
 "host_permissions": [
     "https://open.spotify.com/*",
     "http://127.0.0.1:5000/*"
 ],
+"background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
 "content_scripts": [
     {
         "matches": ["https://open.spotify.com/*"],
