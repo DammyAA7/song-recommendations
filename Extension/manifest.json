@@ -8,8 +8,7 @@
     "scripting"
 ],
 "host_permissions": [
-    "https://open.spotify.com/*",
-    "http://127.0.0.1:5000/*"
+    "https://open.spotify.com/*"
 ],
 "content_scripts": [
     {
@@ -59,12 +58,6 @@
         "run_at": "document_end"
     }
 ],
-"web_accessible_resources": [
-    {
-      "resources": ["*.js", "*.css"],
-      "matches": ["https://open.spotify.com/*"]
-    }
-  ],
 "action":{
     "default_title": "Recspot"
 }

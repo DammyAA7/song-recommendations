@@ -43,7 +43,7 @@ Session(app)
 CORS(app, 
      origins=["https://open.spotify.com", "chrome-extension://ijageeaiiaemphkdojoopbmphopjoipk", "https://recspot-e6585868d70b.herokuapp.com"], 
      supports_credentials=True,
-     allow_headers=["Content-Type", "Authorization"],
+     allow_headers=["Content-Type", "Authorization", "Cache-Control", "Pragma"],
      methods=["GET", "POST", "OPTIONS", "DELETE"])
 
 # Function to establish a connection to the Postgres database

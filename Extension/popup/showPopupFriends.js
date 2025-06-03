@@ -42,7 +42,7 @@ function showPopupFriends() {
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
           <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1H5C3.89 1 3 1.89 3 3V21C3 22.11 3.89 23 5 23H11V21H5V3H13V9H21ZM16 11.5C17.38 11.5 18.5 12.62 18.5 14S17.38 16.5 16 16.5 13.5 15.38 13.5 14 14.62 11.5 16 11.5ZM20 19.5V18.5C20 17.12 17.76 16.5 16 16.5S12 17.12 12 18.5V19.5H20Z"/>
         </svg>
-        <span class="floating-badge" id="floating-requests-badge">3</span>
+        <span class="floating-badge friend-requests-badge" id="floating-requests-badge"></span>
       </button>
       
       <div class="popup-footer">
@@ -60,8 +60,8 @@ function showPopupFriends() {
   const floatingRequestsBtn = content.querySelector("#floating-requests-btn");
   floatingRequestsBtn.addEventListener("click", toggleRequestsModal);
 
-  if (typeof updateRequestsBadge === 'function') {
-    updateRequestsBadge();
+  if (window.friendRequestManager) {
+    window.friendRequestManager.updateRequestsBadge();
   }
 
   // Add friend button event listener
