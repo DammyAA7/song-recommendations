@@ -73,7 +73,7 @@ function showPopupFriends() {
     if (friendInputValue) {
       sendFriendRequest(friendInputValue);
     } else {
-      showMessage("Please enter a Spotify username or profile URL");
+      showMessage("Please enter a Spotify username or profile URL", "error");
     }
   });
 

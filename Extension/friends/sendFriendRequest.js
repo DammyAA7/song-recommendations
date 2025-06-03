@@ -6,7 +6,7 @@ async function sendFriendRequest(friendInput) {
   const username = extractSpotifyUsername(friendInput);
 
   if (!username) {
-    showMessage("Please enter a valid Spotify username or profile URL");
+    showMessage("Please enter a valid Spotify username or profile URL", "error");
     return;
   }
 
@@ -46,7 +46,7 @@ async function sendFriendRequest(friendInput) {
         case "friend_not_found":
             errorMessage = "User not found. Please check the username or profile URL. This user may not be registered on RecSpot.";
             break;
-        case "friend_already_exists":
+        case "already_friends":
           errorMessage = "This user is already your friend";
           break;
         case "cannot_add_yourself":
@@ -55,6 +55,9 @@ async function sendFriendRequest(friendInput) {
         case "friend_id_required":
           errorMessage = "Please enter a valid username";
           break;
+        case "friend_request_already_received":
+          errorMessage = "You have already received a friend request from this user. Please accept or decline it.";
+          break;
         default:
           if (data.details) {
             errorMessage = `Error: ${
@@ -62,11 +65,11 @@ async function sendFriendRequest(friendInput) {
             }`;
           }
       }
-      showMessage(errorMessage);
+      showMessage(errorMessage, "error");
     }
   } catch (error) {
     console.error("Error adding friend:", error);
-    showMessage("Network error. Please check your connection and try again.");
+    showMessage("Network error. Please check your connection and try again.", "error");
   } finally {
     // Re-enable button
     addBtn.disabled = false;

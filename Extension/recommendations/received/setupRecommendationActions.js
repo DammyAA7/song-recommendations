@@ -84,7 +84,7 @@
             );
 
             // Show error message to user
-            showMessage("Failed to update. Please try again.");
+            showMessage("Failed to update. Please try again.", "error");
 
             console.error(
               "Server error:",
@@ -103,7 +103,7 @@
           );
 
           // Show error message to user
-          showMessage("Network error. Please check your connection.");
+          showMessage("Network error. Please check your connection.", "error");
 
           console.error("Network error:", error);
         }

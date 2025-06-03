@@ -10,15 +10,30 @@ class FriendRequestsManager {
     this.pollingFrequency = 30000; // 30 seconds
     this.lastFetchTime = null;
     this.lastRequestsHash = null; // For change detection
-    
+
     // Adaptive polling
     this.consecutiveNoChanges = 0;
     this.maxConsecutiveNoChanges = 5; // After 5 checks with no changes, slow down
     this.slowPollingFrequency = 60000; // 1 minute when inactive
-    
+
     // Background polling (less frequent when modal is closed)
     this.backgroundPollingFrequency = 120000; // 2 minutes
     this.isBackgroundPolling = false;
+  }
+
+  getRequestsList() {
+    if (!this.requestsList) {
+      this.requestsList = document.querySelector("#modal-friend-requests-list");
+    }
+    return this.requestsList;
+  }
+
+  // Generate a simple hash of requests for change detection
+  generateRequestsHash(requests) {
+    const simplified = requests
+      .map((req) => `${req.sender_id}-${req.created_at}`)
+      .sort();
+    return simplified.join("|");
   }
 
   async initializePolling() {
@@ -44,10 +59,11 @@ class FriendRequestsManager {
       clearInterval(this.pollingInterval);
     }
 
-    const pollFrequency = this.isModalOpen ? 
-      (this.consecutiveNoChanges >= this.maxConsecutiveNoChanges ? 
-        this.slowPollingFrequency : this.pollingFrequency) :
-      this.backgroundPollingFrequency;
+    const pollFrequency = this.isModalOpen
+      ? this.consecutiveNoChanges >= this.maxConsecutiveNoChanges
+        ? this.slowPollingFrequency
+        : this.pollingFrequency
+      : this.backgroundPollingFrequency;
 
     this.pollingInterval = setInterval(() => {
       this.pollForUpdates();
@@ -60,35 +76,37 @@ class FriendRequestsManager {
     try {
       // Don't poll if we're in the middle of an API call
       if (this.isPolling) return;
-      
+
       this.isPolling = true;
-      
+
       // Use lightweight endpoint if available, otherwise use full endpoint
       const requests = await this.fetchFriendRequests();
-      
+
       if (requests) {
         const newHash = this.generateRequestsHash(requests);
-        
+
         // Only update if data has changed
         if (newHash !== this.lastRequestsHash) {
           console.log("Friend requests updated");
           this.cachedRequests = requests;
           this.lastRequestsHash = newHash;
           this.consecutiveNoChanges = 0;
-          
+
           // Only render if modal is open
           if (this.isModalOpen) {
             this.renderRequests();
           }
           this.updateRequestsBadge();
-          
+
           // Check for new requests and show notifications
           this.checkForNewRequests(requests);
         } else {
           this.consecutiveNoChanges++;
-          console.log(`No changes detected (${this.consecutiveNoChanges} consecutive)`);
+          console.log(
+            `No changes detected (${this.consecutiveNoChanges} consecutive)`
+          );
         }
-        
+
         // Adjust polling frequency based on activity
         if (this.consecutiveNoChanges >= this.maxConsecutiveNoChanges) {
           this.startPolling(); // Restart with slower frequency
@@ -112,12 +130,12 @@ class FriendRequestsManager {
           method: "GET",
           credentials: "include",
           headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
         }
       );
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -133,27 +151,30 @@ class FriendRequestsManager {
 
   checkForNewRequests(currentRequests) {
     if (!this.cachedRequests.length) return; // First load
-    
-    const existingIds = new Set(this.cachedRequests.map(req => req.sender_id));
-    const newRequests = currentRequests.filter(req => !existingIds.has(req.sender_id));
-    
+
+    const existingIds = new Set(
+      this.cachedRequests.map((req) => req.sender_id)
+    );
+    const newRequests = currentRequests.filter(
+      (req) => !existingIds.has(req.sender_id)
+    );
+
     // Show notification for new requests
-    newRequests.forEach(request => {
-      showMessage(
-        `New friend request from ${request.display_name}`,
-        "success"
-      );
+    newRequests.forEach((request) => {
+      showMessage(`New friend request from ${request.display_name}`, "success");
     });
   }
 
   async loadModalFriendRequests() {
     try {
-      // Initialize WebSocket if not already done
-      if (!this.isSubscribed && !this.currentUserId) {
+      // Initialize polling if not already done
+      if (!this.currentUserId) {
         await this.initializePolling();
       }
       // If we have cached data and it's recent (< 10 seconds), use cache
-      const cacheAge = this.lastFetchTime ? Date.now() - this.lastFetchTime : Infinity;
+      const cacheAge = this.lastFetchTime
+        ? Date.now() - this.lastFetchTime
+        : Infinity;
       if (this.cachedRequests.length > 0 && cacheAge < 10000) {
         console.log("Using cached friend requests");
         this.renderRequests();
@@ -163,7 +184,9 @@ class FriendRequestsManager {
       // Otherwise fetch fresh data
       const requests = await this.fetchFriendRequests();
       if (requests) {
+        console.log("Loaded friend requests from API");
         this.cachedRequests = requests;
+        console.log("Cached friend requests:", this.cachedRequests);
         this.lastRequestsHash = this.generateRequestsHash(requests);
         this.renderRequests();
         this.updateRequestsBadge();
@@ -177,26 +200,60 @@ class FriendRequestsManager {
   }
 
   renderRequests() {
-    if (!this.requestsList) return;
+    const requestsList = this.getRequestsList(); // Use the helper method
+    console.log("Rendering friend requests in modal");
+    console.log("Requests list element:", this.requestsList);
+    if (!requestsList) return;
 
     if (!this.cachedRequests.length) {
+      console.log("No friend requests to display");
       this.requestsList.innerHTML =
         '<div class="no-requests">No friend requests</div>';
       return;
     }
-
+    console.log("Rendering friend requests:", this.cachedRequests.length);
     const requestsHTML = this.cachedRequests
       .map((request) => this.createRequestHTML(request))
       .join("");
 
     this.requestsList.innerHTML = requestsHTML;
+
+    this.attachEventListeners();
+  }
+
+  attachEventListeners() {
+    const requestsList = this.getRequestsList();
+    if (!requestsList) return;
+
+    // Remove existing listeners to prevent duplicates
+    requestsList.removeEventListener("click", this.handleButtonClick);
+
+    // Add single event listener using event delegation
+    this.handleButtonClick = (e) => {
+      const button = e.target.closest("button[data-action]");
+      if (!button) return;
+
+      const action = button.dataset.action;
+      const senderId = button.dataset.senderId;
+
+      if (action === "accept") {
+        this.acceptRequest(senderId);
+      } else if (action === "decline") {
+        this.declineRequest(senderId);
+      }
+    };
+
+    requestsList.addEventListener("click", this.handleButtonClick);
   }
 
   renderError() {
-    if (this.requestsList) {
+    const requestsList = this.getRequestsList(); // Use the helper method
+    if (requestsList) {
       this.requestsList.innerHTML =
         '<div class="error-message">Failed to load friend requests</div>';
     }
+
+    requestsList.addEventListener("click", this.handleButtonClick);
   }
 
   createRequestHTML(request) {
@@ -211,10 +268,10 @@ class FriendRequestsManager {
           </div>
         </div>
         <div class="request-actions">
-          <button class="accept-btn spotify-btn-primary" onclick="friendRequestManager.acceptRequest('${request.sender_id}')">
+          <button class="accept-btn spotify-btn-primary" data-action="accept" data-sender-id="${request.sender_id}">
             Accept
           </button>
-          <button class="decline-btn spotify-btn-secondary" onclick="friendRequestManager.declineRequest('${request.sender_id}')">
+          <button class="decline-btn spotify-btn-secondary" data-action="decline" data-sender-id="${request.sender_id}">
             Decline
           </button>
         </div>
@@ -255,7 +312,9 @@ class FriendRequestsManager {
           this.cachedRequests = this.cachedRequests.filter(
             (req) => req.sender_id !== senderId
           );
-          this.lastRequestsHash = this.generateRequestsHash(this.cachedRequests);
+          this.lastRequestsHash = this.generateRequestsHash(
+            this.cachedRequests
+          );
           this.updateRequestsBadge();
           this.pollForUpdates();
         }, 300);
@@ -265,12 +324,12 @@ class FriendRequestsManager {
       } else {
         // If API call failed, reverse the animation
         this.reverseRequestAnimation(senderId);
-        showMessage("Failed to accept request");
+        showMessage("Failed to accept request", "error");
       }
     } catch (error) {
       console.error("Error accepting request:", error);
       this.reverseRequestAnimation(senderId);
-      showMessage("Failed to accept request");
+      showMessage("Failed to accept request", "error");
     }
   }
 
@@ -295,7 +354,9 @@ class FriendRequestsManager {
           this.cachedRequests = this.cachedRequests.filter(
             (req) => req.sender_id !== senderId
           );
-          this.lastRequestsHash = this.generateRequestsHash(this.cachedRequests);
+          this.lastRequestsHash = this.generateRequestsHash(
+            this.cachedRequests
+          );
           this.updateRequestsBadge();
           this.pollForUpdates();
         }, 300);
@@ -305,17 +366,19 @@ class FriendRequestsManager {
       } else {
         // If API call failed, reverse the animation
         this.reverseRequestAnimation(senderId);
-        showMessage("Failed to decline request");
+        showMessage("Failed to decline request", "error");
       }
     } catch (error) {
       console.error("Error declining request:", error);
       this.reverseRequestAnimation(senderId);
-      showMessage("Failed to decline request");
+      showMessage("Failed to decline request", "error");
     }
   }
 
   updateRequestsBadge() {
     // Update any badge/counter showing number of pending requests
+    console.log("Updating friend requests badge");
+
     const badge = document.querySelector(".friend-requests-badge");
     if (badge) {
       const count = this.cachedRequests.length;
@@ -370,6 +433,13 @@ class FriendRequestsManager {
     this.isModalOpen = false;
     this.isBackgroundPolling = true;
     this.startPolling(); // Switch to background polling
+    this.requestsList = null;
+
+    const requestsList = this.getRequestsList();
+    if (requestsList && this.handleButtonClick) {
+      console.log("Removing event listener for button clicks");
+      requestsList.removeEventListener("click", this.handleButtonClick);
+    }
   }
 
   async refreshRequests() {

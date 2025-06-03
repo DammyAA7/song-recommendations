@@ -66,7 +66,7 @@ async function loadFriends() {
 
             if (!currentSong) {
               showMessage(
-                "No song is currently playing or song information could not be detected. Try reloading the page and try again."
+                "No song is currently playing or song information could not be detected. Try reloading the page and try again.", "error"
               );
               return;
             }
@@ -105,7 +105,7 @@ async function loadFriends() {
             } else {
               errorMessage = message;
             }
-            showMessage(errorMessage);
+            showMessage(errorMessage, "error");
 
             btn.innerHTML = "Send";
             btn.style.background = "#1db954";

@@ -545,6 +545,17 @@ def send_friend_request():
         if cursor.fetchone()[0]:
             return jsonify({'error': 'friend_request_already_sent'}), 400
         
+         # If a request from the friend to the user exists
+        cursor.execute("""
+            SELECT EXISTS(
+                SELECT 1 FROM requests
+                WHERE sender_id = %s AND receiver_id = %s
+            )
+        """, (friend_id, user_id))
+
+        if cursor.fetchone()[0]:
+            return jsonify({'error': 'friend_request_already_received'}), 400
+        
         # Insert the friend request into the database
         cursor.execute("""
             INSERT INTO requests (sender_id, receiver_id) 
