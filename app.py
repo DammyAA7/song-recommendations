@@ -773,6 +773,39 @@ def get_friend_requests():
         cursor.close()
         conn.close()
     
+
+@app.route('/get_requests_count', methods=['GET'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def get_requests_count():
+    access_token = session.get('access_token')
+    user_id = session.get('user_id')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 401
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Count the number of friend requests for the user
+        cursor.execute("""
+            SELECT COUNT(*) FROM requests WHERE receiver_id = %s
+        """, (user_id,))
+        
+        count = cursor.fetchone()[0]
+        
+        return jsonify({'requests_count': count})
+        
+    except Exception as e:
+        print(f"Error counting friend requests: {e}")
+        return jsonify({'error': 'database_error'}), 500
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+
 def find_mutuals(user_id, friend_id):
     """
     Find mutual friends between two users.

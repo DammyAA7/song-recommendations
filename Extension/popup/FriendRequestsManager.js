@@ -280,7 +280,9 @@ class FriendRequestsManager {
   }
 
   formatTimeAgo(dateString) {
+    console.log("Formatting time ago for:", dateString);
     const date = new Date(dateString);
+    console.log("Parsed date:", date);
     const now = new Date();
     const diffInSeconds = Math.floor((now - date) / 1000);
 
@@ -315,9 +317,14 @@ class FriendRequestsManager {
           this.lastRequestsHash = this.generateRequestsHash(
             this.cachedRequests
           );
+          if (this.isModalOpen) {
+            this.renderRequests();
+          }
           this.updateRequestsBadge();
           this.pollForUpdates();
         }, 300);
+
+        loadFriends(); // Refresh friends list
 
         showMessage("Friend request accepted!");
         this.consecutiveNoChanges = 0; // Reset no changes count
@@ -357,6 +364,9 @@ class FriendRequestsManager {
           this.lastRequestsHash = this.generateRequestsHash(
             this.cachedRequests
           );
+          if (this.isModalOpen) {
+            this.renderRequests();
+          }
           this.updateRequestsBadge();
           this.pollForUpdates();
         }, 300);
@@ -375,17 +385,61 @@ class FriendRequestsManager {
     }
   }
 
-  updateRequestsBadge() {
-    // Update any badge/counter showing number of pending requests
-    console.log("Updating friend requests badge");
-
-    const badge = document.querySelector(".friend-requests-badge");
-    if (badge) {
-      const count = this.cachedRequests.length;
-      badge.textContent = count;
-      badge.style.display = count > 0 ? "block" : "none";
-    }
+  async updateRequestsBadge() {
+  console.log("Updating friend requests badge");
+  
+  const badge = document.querySelector(".friend-requests-badge");
+  if (!badge) {
+    console.log("No friend requests badge found");
+    return;
   }
+
+  try {
+    // Use cached data if available and recent
+    let requestCount;
+    
+    if (this.cachedRequests && this.cachedRequests.length !== undefined) {
+      // Use cached data - more efficient and consistent
+      requestCount = this.cachedRequests.length;
+      console.log(`Using cached count: ${requestCount}`);
+    } else {
+      // Fallback to API call if no cached data
+      console.log("No cached data, fetching count from API");
+      const response = await fetch(
+        "https://recspot-e6585868d70b.herokuapp.com/friend_requests_count", 
+        {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+        }
+      );
+      
+      if (!response.ok) {
+        console.error("Failed to fetch friend requests count:", response.statusText);
+        badge.style.display = "none";
+        return;
+      }
+      
+      const data = await response.json();
+      requestCount = data.requests_count || 0;
+      console.log(`Fetched count from API: ${requestCount}`);
+    }
+    
+    // Update badge display
+    badge.textContent = requestCount;
+    badge.style.display = requestCount > 0 ? "block" : "none";
+    
+    console.log(`Badge updated: ${requestCount} requests`);
+    
+  } catch (error) {
+    console.error("Error updating requests badge:", error);
+    // Hide badge on error to avoid confusion
+    badge.style.display = "none";
+  }
+}
 
   animateRequestRemoval(requestId) {
     const requestElement = document.querySelector(
