@@ -2,37 +2,26 @@ class FriendRequestsManager {
   constructor() {
     this.requestsList = document.querySelector("#modal-friend-requests-list");
     this.cachedRequests = [];
-    this.socket = null;
-    this.subscription = null;
     this.isModalOpen = false;
     this.currentUserId = null;
 
-    // Set up message listener for background script communications
-    this.setupMessageListener();
+    // Polling configuration
+    this.pollingInterval = null;
+    this.pollingFrequency = 30000; // 30 seconds
+    this.lastFetchTime = null;
+    this.lastRequestsHash = null; // For change detection
+    
+    // Adaptive polling
+    this.consecutiveNoChanges = 0;
+    this.maxConsecutiveNoChanges = 5; // After 5 checks with no changes, slow down
+    this.slowPollingFrequency = 60000; // 1 minute when inactive
+    
+    // Background polling (less frequent when modal is closed)
+    this.backgroundPollingFrequency = 120000; // 2 minutes
+    this.isBackgroundPolling = false;
   }
 
-  setupMessageListener() {
-    // Listen for messages from background script
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      switch (message.type) {
-        case "FRIEND_REQUEST_UPDATE":
-          this.handleRealtimeUpdate(message.payload);
-          break;
-
-        case "REALTIME_SUBSCRIBED":
-          console.log("Successfully subscribed to real-time updates");
-          this.isSubscribed = true;
-          break;
-
-        case "REALTIME_ERROR":
-          console.error("Real-time subscription error:", message.error);
-          showMessage("Real-time updates temporarily unavailable");
-          break;
-      }
-    });
-  }
-
-  async initializeRealtimeSubscription() {
+  async initializePolling() {
     try {
       this.currentUserId = await this.getCurrentUserId();
       if (!this.currentUserId) {
@@ -40,150 +29,150 @@ class FriendRequestsManager {
         return false;
       }
 
-      chrome.runtime.sendMessage(
+      // Start polling
+      this.startPolling();
+      return true;
+    } catch (error) {
+      console.error("Error initializing polling:", error);
+      return false;
+    }
+  }
+
+  startPolling() {
+    // Clear any existing interval
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+    }
+
+    const pollFrequency = this.isModalOpen ? 
+      (this.consecutiveNoChanges >= this.maxConsecutiveNoChanges ? 
+        this.slowPollingFrequency : this.pollingFrequency) :
+      this.backgroundPollingFrequency;
+
+    this.pollingInterval = setInterval(() => {
+      this.pollForUpdates();
+    }, pollFrequency);
+
+    console.log(`Polling started with ${pollFrequency / 1000}s interval`);
+  }
+
+  async pollForUpdates() {
+    try {
+      // Don't poll if we're in the middle of an API call
+      if (this.isPolling) return;
+      
+      this.isPolling = true;
+      
+      // Use lightweight endpoint if available, otherwise use full endpoint
+      const requests = await this.fetchFriendRequests();
+      
+      if (requests) {
+        const newHash = this.generateRequestsHash(requests);
+        
+        // Only update if data has changed
+        if (newHash !== this.lastRequestsHash) {
+          console.log("Friend requests updated");
+          this.cachedRequests = requests;
+          this.lastRequestsHash = newHash;
+          this.consecutiveNoChanges = 0;
+          
+          // Only render if modal is open
+          if (this.isModalOpen) {
+            this.renderRequests();
+          }
+          this.updateRequestsBadge();
+          
+          // Check for new requests and show notifications
+          this.checkForNewRequests(requests);
+        } else {
+          this.consecutiveNoChanges++;
+          console.log(`No changes detected (${this.consecutiveNoChanges} consecutive)`);
+        }
+        
+        // Adjust polling frequency based on activity
+        if (this.consecutiveNoChanges >= this.maxConsecutiveNoChanges) {
+          this.startPolling(); // Restart with slower frequency
+        }
+      }
+    } catch (error) {
+      console.error("Error during polling:", error);
+      this.consecutiveNoChanges++;
+    } finally {
+      this.isPolling = false;
+    }
+  }
+
+  async fetchFriendRequests() {
+    try {
+      // Add timestamp to prevent caching issues
+      const timestamp = Date.now();
+      const response = await fetch(
+        `https://recspot-e6585868d70b.herokuapp.com/friend_requests?_t=${timestamp}`,
         {
-          type: "SUBSCRIBE_FRIEND_REQUESTS",
-          userId: this.currentUserId,
-        },
-        (response) => {
-          if (response?.success) {
-            console.log("Subscription request sent to background script");
-          } else {
-            console.error("Failed to send subscription request");
+          method: "GET",
+          credentials: "include",
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
           }
         }
       );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
-      return true;
+      const requests = await response.json();
+      this.lastFetchTime = Date.now();
+      return requests;
     } catch (error) {
-      console.error("Error initializing WebSocket:", error);
-      return false;
+      console.error("Error fetching friend requests:", error);
+      return null;
     }
+  }
+
+  checkForNewRequests(currentRequests) {
+    if (!this.cachedRequests.length) return; // First load
+    
+    const existingIds = new Set(this.cachedRequests.map(req => req.sender_id));
+    const newRequests = currentRequests.filter(req => !existingIds.has(req.sender_id));
+    
+    // Show notification for new requests
+    newRequests.forEach(request => {
+      showMessage(
+        `New friend request from ${request.display_name}`,
+        "success"
+      );
+    });
   }
 
   async loadModalFriendRequests() {
     try {
       // Initialize WebSocket if not already done
       if (!this.isSubscribed && !this.currentUserId) {
-        await this.initializeRealtimeSubscription();
+        await this.initializePolling();
       }
-      // Initial load from your existing endpoint
-      const response = await fetch(
-        "https://recspot-e6585868d70b.herokuapp.com/friend_requests",
-        {
-          method: "GET",
-          credentials: "include",
-        }
-      );
-      if (!response.ok) throw new Error("Failed to fetch friend requests");
-
-      const requests = await response.json();
-      this.cachedRequests = requests;
-      this.renderRequests();
-      this.updateRequestsBadge();
+      // If we have cached data and it's recent (< 10 seconds), use cache
+      const cacheAge = this.lastFetchTime ? Date.now() - this.lastFetchTime : Infinity;
+      if (this.cachedRequests.length > 0 && cacheAge < 10000) {
+        console.log("Using cached friend requests");
+        this.renderRequests();
+        this.updateRequestsBadge();
+        return;
+      }
+      // Otherwise fetch fresh data
+      const requests = await this.fetchFriendRequests();
+      if (requests) {
+        this.cachedRequests = requests;
+        this.lastRequestsHash = this.generateRequestsHash(requests);
+        this.renderRequests();
+        this.updateRequestsBadge();
+      } else {
+        this.renderError();
+      }
     } catch (error) {
       console.error("Error loading friend requests:", error);
       this.renderError();
-    }
-  }
-
-  async handleRealtimeUpdate(payload) {
-    const { eventType, new: newRecord, old: oldRecord } = payload;
-
-    switch (eventType) {
-      case "INSERT":
-        await this.handleNewRequest(newRecord);
-        break;
-      //Will implement user being able to deleting requests later
-      case "DELETE":
-        this.handleDeletedRequest(oldRecord);
-        break;
-      case "UPDATE":
-        // Handle updates if needed
-        console.log("Friend request updated:", newRecord);
-        break;
-    }
-  }
-
-  async handleNewRequest(newRecord) {
-    try {
-      // Check if we already have this request to avoid duplicates
-      const existingRequest = this.cachedRequests.find(
-        (req) => req.sender_id === newRecord.sender_id
-      );
-
-      if (existingRequest) {
-        console.log("Request already exists, skipping duplicate");
-        return;
-      }
-      // Fetch complete user data for the new request
-      const response = await fetch(
-        "https://recspot-e6585868d70b.herokuapp.com/get_user_profile",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({ user_id: newRecord.sender_id }),
-        }
-      );
-      const userData = await response.json();
-
-      const newRequest = {
-        sender_id: newRecord.sender_id,
-        created_at: newRecord.created_at,
-        display_name: userData.spotify_display_name,
-        avatar_url: userData.spotify_avatar_url,
-        mutual_friends: await this.getMutualFriendsCount(newRecord.sender_id),
-      };
-
-      this.cachedRequests.unshift(newRequest); // Add to beginning
-      this.renderRequests();
-      this.updateRequestsBadge();
-      showMessage(
-        `New friend request from ${userData.spotify_display_name}`,
-        "success"
-      );
-    } catch (error) {
-      console.error("Error handling new request:", error);
-      // Fallback: refresh all requests
-      this.loadModalFriendRequests();
-    }
-  }
-
-  handleDeletedRequest(deletedRecord) {
-    const initialLength = this.cachedRequests.length;
-    this.cachedRequests = this.cachedRequests.filter(
-      (req) => req.sender_id !== deletedRecord.sender_id
-    );
-
-    // Only re-render if something was actually removed
-    if (this.cachedRequests.length < initialLength) {
-      this.renderRequests();
-      this.updateRequestsBadge();
-    }
-  }
-
-  async getMutualFriendsCount(sender_id) {
-    try {
-      const response = await fetch(
-        "https://recspot-e6585868d70b.herokuapp.com/get_mutual_friends",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            sender_id: sender_id,
-          }),
-        }
-      );
-      const data = await response.json();
-      return data.mutual_friends_count || 0;
-    } catch {
-      return 0;
     }
   }
 
@@ -266,10 +255,13 @@ class FriendRequestsManager {
           this.cachedRequests = this.cachedRequests.filter(
             (req) => req.sender_id !== senderId
           );
+          this.lastRequestsHash = this.generateRequestsHash(this.cachedRequests);
           this.updateRequestsBadge();
+          this.pollForUpdates();
         }, 300);
 
         showMessage("Friend request accepted!");
+        this.consecutiveNoChanges = 0; // Reset no changes count
       } else {
         // If API call failed, reverse the animation
         this.reverseRequestAnimation(senderId);
@@ -303,10 +295,13 @@ class FriendRequestsManager {
           this.cachedRequests = this.cachedRequests.filter(
             (req) => req.sender_id !== senderId
           );
+          this.lastRequestsHash = this.generateRequestsHash(this.cachedRequests);
           this.updateRequestsBadge();
+          this.pollForUpdates();
         }, 300);
 
         showMessage("Friend request declined", "success");
+        this.consecutiveNoChanges = 0;
       } else {
         // If API call failed, reverse the animation
         this.reverseRequestAnimation(senderId);
@@ -365,28 +360,38 @@ class FriendRequestsManager {
   // Lifecycle management
   onModalOpen() {
     this.isModalOpen = true;
+    this.isBackgroundPolling = false;
+    this.consecutiveNoChanges = 0; // Reset when user opens modal
+    this.startPolling(); // Switch to active polling
     this.loadModalFriendRequests();
   }
 
   onModalClose() {
     this.isModalOpen = false;
-    // Keep subscription active for background updates
-    // You could optionally unsubscribe here to save resources
+    this.isBackgroundPolling = true;
+    this.startPolling(); // Switch to background polling
+  }
+
+  async refreshRequests() {
+    console.log("Manual refresh triggered");
+    this.consecutiveNoChanges = 0;
+    const requests = await this.fetchFriendRequests();
+    if (requests) {
+      this.cachedRequests = requests;
+      this.lastRequestsHash = this.generateRequestsHash(requests);
+      if (this.isModalOpen) {
+        this.renderRequests();
+      }
+      this.updateRequestsBadge();
+    }
   }
 
   cleanup() {
-    if (this.socket) {
-      // Unsubscribe from friend requests
-      if (this.currentUserId) {
-        this.socket.emit("unsubscribe_friend_requests", {
-          user_id: this.currentUserId,
-        });
-      }
-
-      // Disconnect socket
-      this.socket.disconnect();
-      this.socket = null;
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
     }
+    console.log("Friend requests polling stopped");
   }
 
   // Utility methods

@@ -15,7 +15,19 @@ class BackgroundRealtimeManager {
       const supabaseUrl = 'https://gooepfzjehynozjqzuxl.supabase.co';
       const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdvb2VwZnpqZWh5bm96anF6dXhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg0NjE4NjYsImV4cCI6MjA2NDAzNzg2Nn0.0sgu_2i1VJTueHOJTq-mUpQwu8fi55T6GO2hEOHCLKA';
       
-      this.supabase = createClient(supabaseUrl, supabaseAnonKey);
+      // Configure Supabase for browser environment
+      this.supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        realtime: {
+          params: {
+            eventsPerSecond: 10
+          }
+        },
+        // Ensure we're using browser-compatible WebSocket
+        global: {
+          WebSocket: globalThis.WebSocket || WebSocket
+        }
+      });
+      
       console.log('Supabase client initialized in background');
     } catch (error) {
       console.error('Failed to initialize Supabase:', error);
@@ -37,12 +49,19 @@ class BackgroundRealtimeManager {
     // If already subscribed for this user, don't create duplicate subscription
     if (this.activeSubscriptions.has(userId)) {
       console.log(`Already subscribed to friend requests for user ${userId}`);
+      // Still notify the new tab that subscription is active
+      chrome.tabs.sendMessage(tabId, {
+        type: 'REALTIME_SUBSCRIBED',
+        userId: userId
+      }).catch(err => console.error('Failed to notify tab:', err));
       return;
     }
 
     try {
+      const channelName = `friend_requests_${userId}`;
+      
       const subscription = this.supabase
-        .channel(`friend_requests_${userId}`)
+        .channel(channelName)
         .on(
           'postgres_changes',
           {
@@ -53,16 +72,36 @@ class BackgroundRealtimeManager {
           },
           (payload) => this.handleFriendRequestChange(payload, userId)
         )
-        .subscribe();
+        .subscribe((status) => {
+          console.log(`Subscription status for user ${userId}:`, status);
+          
+          if (status === 'SUBSCRIBED') {
+            // Notify all tabs for this user that subscription is active
+            const userTabs = this.userConnections.get(userId);
+            if (userTabs) {
+              userTabs.forEach(tabId => {
+                chrome.tabs.sendMessage(tabId, {
+                  type: 'REALTIME_SUBSCRIBED',
+                  userId: userId
+                }).catch(err => console.error('Failed to notify tab:', err));
+              });
+            }
+          } else if (status === 'CHANNEL_ERROR') {
+            // Notify tabs of the error
+            const userTabs = this.userConnections.get(userId);
+            if (userTabs) {
+              userTabs.forEach(tabId => {
+                chrome.tabs.sendMessage(tabId, {
+                  type: 'REALTIME_ERROR',
+                  error: 'Failed to establish real-time connection'
+                }).catch(err => console.error('Failed to notify tab:', err));
+              });
+            }
+          }
+        });
 
       this.activeSubscriptions.set(userId, subscription);
-      console.log(`Subscribed to friend requests for user ${userId}`);
-      
-      // Notify the tab that subscription is active
-      chrome.tabs.sendMessage(tabId, {
-        type: 'REALTIME_SUBSCRIBED',
-        userId: userId
-      });
+      console.log(`Attempting to subscribe to friend requests for user ${userId}`);
 
     } catch (error) {
       console.error('Error setting up friend request subscription:', error);
@@ -71,7 +110,7 @@ class BackgroundRealtimeManager {
       chrome.tabs.sendMessage(tabId, {
         type: 'REALTIME_ERROR',
         error: error.message
-      });
+      }).catch(err => console.error('Failed to notify tab:', err));
     }
   }
 
@@ -88,9 +127,13 @@ class BackgroundRealtimeManager {
         
         if (this.activeSubscriptions.has(userId)) {
           const subscription = this.activeSubscriptions.get(userId);
-          await this.supabase.removeChannel(subscription);
-          this.activeSubscriptions.delete(userId);
-          console.log(`Unsubscribed from friend requests for user ${userId}`);
+          try {
+            await this.supabase.removeChannel(subscription);
+            this.activeSubscriptions.delete(userId);
+            console.log(`Unsubscribed from friend requests for user ${userId}`);
+          } catch (error) {
+            console.error(`Error unsubscribing for user ${userId}:`, error);
+          }
         }
       }
     }
@@ -121,7 +164,9 @@ class BackgroundRealtimeManager {
       }).catch(error => {
         console.error(`Failed to send message to tab ${tabId}:`, error);
         // Clean up dead tab connections
-        this.userConnections.get(userId).delete(tabId);
+        if (this.userConnections.has(userId)) {
+          this.userConnections.get(userId).delete(tabId);
+        }
       });
     });
   }
@@ -138,15 +183,46 @@ class BackgroundRealtimeManager {
 
   // Clean up all subscriptions
   async cleanup() {
+    console.log('Cleaning up all subscriptions...');
+    
     for (const [userId, subscription] of this.activeSubscriptions) {
       try {
         await this.supabase.removeChannel(subscription);
+        console.log(`Cleaned up subscription for user ${userId}`);
       } catch (error) {
         console.error(`Error removing subscription for user ${userId}:`, error);
       }
     }
+    
     this.activeSubscriptions.clear();
     this.userConnections.clear();
+  }
+
+  // Health check method
+  async checkConnection() {
+    if (!this.supabase) {
+      console.error('Supabase client not initialized');
+      return false;
+    }
+    
+    try {
+      // Simple test query to check connection
+      const { data, error } = await this.supabase
+        .from('requests')
+        .select('count')
+        .limit(1);
+      
+      if (error) {
+        console.error('Connection check failed:', error);
+        return false;
+      }
+      
+      console.log('Supabase connection is healthy');
+      return true;
+    } catch (error) {
+      console.error('Connection check error:', error);
+      return false;
+    }
   }
 }
 
@@ -168,12 +244,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: true });
       break;
       
+    case 'HEALTH_CHECK':
+      realtimeManager.checkConnection().then(isHealthy => {
+        sendResponse({ success: true, healthy: isHealthy });
+      });
+      return true; // Keep channel open for async response
+      
     case 'PING':
       sendResponse({ success: true, message: 'Background script is alive' });
       break;
       
     default:
-      console.log ('Unknown message type:', message.type);
+      console.log('Unknown message type:', message.type);
+      sendResponse({ success: false, error: 'Unknown message type' });
   }
   
   return true; // Keep message channel open for async response
@@ -187,6 +270,11 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // Clean up when extension is disabled/updated
 chrome.runtime.onSuspend.addListener(() => {
   realtimeManager.cleanup();
+});
+
+// Handle extension startup
+chrome.runtime.onStartup.addListener(() => {
+  console.log('Extension started, reinitializing real-time manager');
 });
 
 console.log('Background script loaded with real-time manager');

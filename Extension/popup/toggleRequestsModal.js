@@ -12,9 +12,9 @@ async function toggleRequestsModal() {
     return;
   }
 
-  // Initialize WebSocket connection if not already done
-  if (window.friendRequestManager && !window.friendRequestManager.socket) {
-    await window.friendRequestManager.initializeRealtimeSubscription();
+  // Initialize polling if not already done
+  if (window.friendRequestManager && !window.friendRequestManager.currentUserId) {
+    await window.friendRequestManager.initializePolling();
   }
 
   // Create new modal
@@ -66,6 +66,14 @@ async function toggleRequestsModal() {
       toggleRequestsModal();
     }
   });
+
 }
+
+// Initialize polling when page loads
+document.addEventListener('DOMContentLoaded', async () => {
+  if (window.friendRequestManager) {
+    await window.friendRequestManager.initializePolling();
+  }
+});
 
 window.toggleRequestsModal = toggleRequestsModal;

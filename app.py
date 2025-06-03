@@ -745,8 +745,14 @@ def get_friend_requests():
             'avatar_url': req['spotify_avatar_url'],
             'mutual_friends': find_mutuals(user_id, req['sender_id'])  # Count mutual friends
         } for req in requests]
+
+        # Add cache control headers to prevent caching
+        response = jsonify(requests_list)
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
         
-        return jsonify(requests_list)
+        return response
         
     except Exception as e:
         print(f"Error retrieving friend requests: {e}")

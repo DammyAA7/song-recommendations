@@ -5,17 +5,12 @@
 "description": "A Chrome extension that recommends songs to your friends based on the current song playing on Spotify.",
 "permissions": [
     "activeTab",
-    "scripting",
-    "tabs"
+    "scripting"
 ],
 "host_permissions": [
     "https://open.spotify.com/*",
     "http://127.0.0.1:5000/*"
 ],
-"background": {
-    "service_worker": "background.js",
-    "type": "module"
-  },
 "content_scripts": [
     {
         "matches": ["https://open.spotify.com/*"],
@@ -60,9 +55,16 @@
             "recommendations/recommendations.css",
             "popup/popup.css",
             "style.css"
-        ]
+        ],
+        "run_at": "document_end"
     }
 ],
+"web_accessible_resources": [
+    {
+      "resources": ["*.js", "*.css"],
+      "matches": ["https://open.spotify.com/*"]
+    }
+  ],
 "action":{
     "default_title": "Recspot"
 }

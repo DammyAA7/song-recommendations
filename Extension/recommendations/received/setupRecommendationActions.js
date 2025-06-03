@@ -1,6 +1,6 @@
  // Function to handle like/dislike actions
   function setupRecommendationActions() {
-    const songItems = content.querySelectorAll("#received-tab .song-item");
+    const songItems = document.querySelectorAll("#received-tab .song-item");
 
     songItems.forEach((songItem) => {
       const songId = songItem.dataset.songId;
