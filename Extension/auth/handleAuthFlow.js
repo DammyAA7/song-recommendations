@@ -19,7 +19,6 @@ async function handleAuthFlow() {
         },
       }
     );
-
     if (response.ok) {
       const data = await response.json();
       console.log("Login response:", data);
@@ -52,8 +51,13 @@ async function handleAuthFlow() {
     authBtn.innerHTML = "Try Again";
     authBtn.disabled = false;
 
+    const errorMessage = error.message.includes("Authentication failed") 
+      ? "Authorization failed. Please try again." 
+      : error.message;
+
     // Show error to user
-    showMessage(error.message);
+    console.error("Error during auth flow:", error.message);
+    showMessage(errorMessage, "error");
   }
 }
 window.handleAuthFlow = handleAuthFlow;

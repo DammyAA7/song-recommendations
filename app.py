@@ -227,13 +227,44 @@ def callback():
 
     print(f"Callback received - Code: {'Present' if code else 'Missing'}")
     print(f"State from callback: {state}")
+
+    # Function to return error page instead of JSON
+    def return_error_page(error_message):
+        return f'''
+        <html>
+        <head><title>Authentication Failed</title></head>
+        <body>
+            <script>
+                // Post error message to parent/opener
+                const errorMessage = "{error_message}";
+                if (window.opener) {{
+                    window.opener.postMessage({{ type: 'auth_error', message: errorMessage }}, '*');
+                    setTimeout(() => window.close(), 1000);
+                }} else if (window.parent !== window) {{
+                    window.parent.postMessage({{ type: 'auth_error', message: errorMessage }}, '*');
+                }} else {{
+                    alert('Authentication failed: ' + errorMessage);
+                    window.close();
+                }}
+            </script>
+            <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+                <h2 style="color: #e74c3c;">Authentication Failed</h2>
+                <p>{error_message}</p>
+                <p>This window will close automatically...</p>
+                <button onclick="window.close()" style="padding: 10px 20px; background: #e74c3c; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    Close Window
+                </button>
+            </div>
+        </body>
+        </html>
+        '''
     
     if error:
-        return jsonify({'error': f'Authorization failed: {error}'}), 400
+        return return_error_page(f'Authorization failed: {error}')
     if not code:
-        return jsonify({'error': 'Authorization code not found'}), 400
+        return_error_page('Authorization code not found')
     if not state:
-        return jsonify({'error': 'State parameter missing'}), 400
+        return return_error_page('State parameter missing')
     
     # Check state against database instead of session
     # Check state against database instead of session
@@ -256,11 +287,7 @@ def callback():
         stored_state_row = cursor.fetchone()
         
         if not stored_state_row:
-            return jsonify({
-                'error': 'Invalid or expired state',
-                'received_state': state,
-                'message': 'State not found in database or has expired'
-            }), 400
+            return return_error_page('Invalid or expired state - please try again')
         
         # State is valid, remove it from database (single use)
         cursor.execute("DELETE FROM oauth_states WHERE state = %s", (state,))
@@ -271,7 +298,7 @@ def callback():
     except Exception as e:
         conn.rollback()
         print(f"Database error during state validation: {e}")
-        return jsonify({'error': 'Database error during authentication'}), 500
+        return return_error_page('Database error during authentication')
     
     finally:
         cursor.close()
@@ -378,7 +405,7 @@ def callback():
         
     except requests.RequestException as e:
         print(f"Token exchange failed: {e}")
-        return jsonify({'error': 'Failed to exchange code for tokens'}), 400
+        return return_error_page('Failed to exchange code for tokens')
 
     return '''
         <html>

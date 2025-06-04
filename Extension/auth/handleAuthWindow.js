@@ -40,20 +40,47 @@ async function handleAuthWindow(authWindow) {
     // Listen for postMessage from callback
 
     const messageHandler = (event) => {
-      if (event.data === "auth_success" && !resolved) {
-        resolved = true;
-        clearInterval(authCheckInterval);
-        clearTimeout(timeout);
-        window.removeEventListener("message", messageHandler);
+      if (!resolved) {
+        if (event.data === "auth_success" && !resolved) {
+          resolved = true;
+          clearInterval(authCheckInterval);
+          clearTimeout(timeout);
+          window.removeEventListener("message", messageHandler);
 
-        if (!authWindow.closed) {
-          authWindow.close();
+          if (!authWindow.closed) {
+            authWindow.close();
+          }
+
+          // Small delay to ensure session is updated
+          setTimeout(() => {
+            resolve();
+          }, 500);
+        } else if (event.data?.type === "auth_error") {
+          resolved = true;
+          clearInterval(authCheckInterval);
+          clearTimeout(timeout);
+          window.removeEventListener("message", messageHandler);
+
+          if (!authWindow.closed) {
+            authWindow.close();
+          }
+
+          reject(new Error(event.data.message || "Authentication failed"));
+        } else if (event.data?.type === "auth_success") {
+          resolved = true;
+          clearInterval(authCheckInterval);
+          clearTimeout(timeout);
+          window.removeEventListener("message", messageHandler);
+
+          if (!authWindow.closed) {
+            authWindow.close();
+          }
+
+          // Small delay to ensure session is updated
+          setTimeout(() => {
+            resolve();
+          }, 500);
         }
-
-        // Small delay to ensure session is updated
-        setTimeout(() => {
-          resolve();
-        }, 500);
       }
     };
 
