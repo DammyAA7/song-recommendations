@@ -14,7 +14,7 @@ async function checkAuthStatus() {
       if (data.authenticated) {
         console.log("User is authenticated");
         closePopup();
-        setTimeout(() => showPopupFriends(), 300);
+        setTimeout(async () => await showPopupFriends(), 300);
         return true;
       } else {
         console.log("User is not authenticated:", data.reason);

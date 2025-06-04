@@ -14,7 +14,6 @@
     {
         "matches": ["https://open.spotify.com/*"],
         "js": [
-            "socket.io.min.js",
             "friends/loadFriends.js",
             "friends/recommendSongToFriend.js",
             "friends/sendFriendRequest.js",

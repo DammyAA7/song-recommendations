@@ -24,7 +24,7 @@ async function handleRecommendClick() {
     if (authResponse.ok) {
       const authData = await authResponse.json();
       if (authData.authenticated) {
-        showPopupFriends();
+        await showPopupFriends();
       } else {
         showPopupAuth();
       }

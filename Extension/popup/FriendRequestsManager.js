@@ -257,11 +257,13 @@ class FriendRequestsManager {
   }
 
   createRequestHTML(request) {
+    this.noAvatar =
+      "https://media.istockphoto.com/id/945691510/vector/people-icon-silhouettes-illustration-vector.jpg?s=612x612&w=0&k=20&c=chZcclmonc5T002ErDfMZ6KYz01tfHnd-Hzk4EfMJ6k=";
     const timeAgo = this.formatTimeAgo(request.created_at);
     return `
       <div class="friend-request-item" data-request-id="${request.sender_id}">
         <div class="request-user-info">
-          <img src="${request.avatar_url}" alt="${request.display_name}" class="request-avatar">
+          <img src="${request.avatar_url || this.noAvatar}" alt="${request.display_name}" class="request-avatar">
           <div class="request-details">
             <h4 class="request-name">${request.display_name}</h4>
             <p class="request-meta">${request.mutual_friends} mutual friends • ${timeAgo}</p>
@@ -314,17 +316,16 @@ class FriendRequestsManager {
           this.cachedRequests = this.cachedRequests.filter(
             (req) => req.sender_id !== senderId
           );
-          this.lastRequestsHash = this.generateRequestsHash(
-            this.cachedRequests
-          );
-          if (this.isModalOpen) {
-            this.renderRequests();
-          }
+          this.updateCacheAndUI();
           this.updateRequestsBadge();
           this.pollForUpdates();
         }, 300);
 
-        loadFriends(); // Refresh friends list
+        if (window.friendsManager) {
+          window.friendsManager.refreshFriends();
+        } else {
+          loadFriends();
+        }
 
         showMessage("Friend request accepted!");
         this.consecutiveNoChanges = 0; // Reset no changes count
@@ -361,13 +362,7 @@ class FriendRequestsManager {
           this.cachedRequests = this.cachedRequests.filter(
             (req) => req.sender_id !== senderId
           );
-          this.lastRequestsHash = this.generateRequestsHash(
-            this.cachedRequests
-          );
-          if (this.isModalOpen) {
-            this.renderRequests();
-          }
-          this.updateRequestsBadge();
+          this.updateCacheAndUI();
           this.pollForUpdates();
         }, 300);
 
@@ -398,7 +393,7 @@ class FriendRequestsManager {
     // Use cached data if available and recent
     let requestCount;
     
-    if (this.cachedRequests && this.cachedRequests.length !== undefined) {
+    if (this.isModalOpen && this.cachedRequests && this.cachedRequests.length > 0) {
       // Use cached data - more efficient and consistent
       requestCount = this.cachedRequests.length;
       console.log(`Using cached count: ${requestCount}`);
@@ -406,7 +401,7 @@ class FriendRequestsManager {
       // Fallback to API call if no cached data
       console.log("No cached data, fetching count from API");
       const response = await fetch(
-        "https://recspot-e6585868d70b.herokuapp.com/friend_requests_count", 
+        "https://recspot-e6585868d70b.herokuapp.com/get_requests_count", 
         {
           method: "GET",
           credentials: "include",
@@ -484,6 +479,7 @@ class FriendRequestsManager {
   }
 
   onModalClose() {
+    console.log("Friend requests modal closed");
     this.isModalOpen = false;
     this.isBackgroundPolling = true;
     this.startPolling(); // Switch to background polling
@@ -509,6 +505,21 @@ class FriendRequestsManager {
       this.updateRequestsBadge();
     }
   }
+
+  updateCacheAndUI() {
+  // Update hash for change detection
+  this.lastRequestsHash = this.generateRequestsHash(this.cachedRequests);
+  
+  // Update UI if modal is open
+  if (this.isModalOpen) {
+    this.renderRequests();
+  }
+  
+  // Update badge
+  this.updateRequestsBadge();
+  
+  console.log(`Cache updated: ${this.cachedRequests.length} requests`);
+}
 
   cleanup() {
     if (this.pollingInterval) {

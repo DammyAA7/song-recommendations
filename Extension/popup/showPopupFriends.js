@@ -1,4 +1,4 @@
-function showPopupFriends() {
+async function showPopupFriends() {
   const popup = createBasePopup();
   const content = popup.querySelector(".popup-content");
 
@@ -52,11 +52,26 @@ function showPopupFriends() {
     </div>
   `;
 
-  document.body.appendChild(popup);  
+  document.body.appendChild(popup);
+
+  await new Promise(resolve => setTimeout(resolve, 50));
 
   // Load friends when the popup opens
-  loadFriends();
+  if (window.friendsManager) {
+    window.friendsManager.onModalOpen();
+  }
 
+  // Initialize polling if not already done
+  if (
+    window.friendRequestManager &&
+    !window.friendRequestManager.currentUserId
+  ) {
+    console.log("Initializing friend request manager...");
+    const initialized = await window.friendRequestManager.initializePolling();
+    if (!initialized) {
+      console.error("Failed to initialize friend request manager");
+    }
+  }
   const floatingRequestsBtn = content.querySelector("#floating-requests-btn");
   floatingRequestsBtn.addEventListener("click", toggleRequestsModal);
 
@@ -133,6 +148,19 @@ function showPopupFriends() {
     }
   });
 
+  const handlePopupClose = () => {
+    if (window.friendsManager) {
+      window.friendsManager.onModalClose();
+    }
+  };
+
+  // Add close button event listener if it exists
+  const closeBtn = popup.querySelector(".close-btn, .popup-close");
+  if (closeBtn) {
+    console.log("Close button found, adding event listener");
+    closeBtn.addEventListener("click", handlePopupClose);
+  }
+
   // Add debug button handler
   const debugBtn = content.querySelector("#debug-friends-btn");
   debugBtn.addEventListener("click", async () => {
@@ -165,7 +193,6 @@ function showPopupFriends() {
       console.error("Logout error:", error);
     }
   });
- 
 }
 
 window.showPopupFriends = showPopupFriends;

@@ -90,7 +90,7 @@ async function loadReceivedRecommendationsSmooth() {
             </div>
             <div class="friend-info">
               <span class="friend-name">${userName}</span>
-              <span class="friend-status">${count} song${
+              <span class="friend-song-count">${count} song${
           count > 1 ? "s" : ""
         } received</span>
             </div>
