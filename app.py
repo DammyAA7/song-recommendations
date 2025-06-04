@@ -386,7 +386,7 @@ def callback():
             except Exception as e:
                 conn.rollback()
                 print(f"Database error storing user: {e}")
-                return jsonify({'error': 'Failed to store user data'}), 500
+                return return_error_page('Failed to store user data')
             
             finally:
                 cursor.close()
@@ -395,7 +395,7 @@ def callback():
             print(f"User profile stored: {profile['id']}")
         else:
             print(f"Failed to fetch user profile: {profile_resp}")
-            return jsonify({'error': 'Failed to fetch user profile'}), 400
+            return return_error_page('Failed to fetch user profile')
 
         # Clear any oauth state from session after successful authentication
         session.pop('oauth_state', None)
