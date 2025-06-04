@@ -36,6 +36,7 @@
             "utils/extractSpotifyUsername.js",
             "utils/getSongId.js",
             "utils/getCurrentlyPlayingSong.js",
+            "utils/internetMonitor.js",
             "popup/FriendRequestsManager.js",
             "popup/createBasePopup.js",
             "popup/showPopupAuth.js",

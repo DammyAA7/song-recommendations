@@ -1,112 +1,131 @@
- async function loadSentRecommendations() {
-    const sentContainer = document.querySelector("#sent-recommendations");
+// Cache for storing sent recommendations data
+let sentRecommendationsCache = {
+  data: null,
+  timestamp: null,
+  isValid: function () {
+    // Cache is valid for 5 minutes
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+    return (
+      this.data &&
+      this.timestamp &&
+      Date.now() - this.timestamp < CACHE_DURATION
+    );
+  },
+  set: function (data) {
+    this.data = data;
+    this.timestamp = Date.now();
+  },
+  get: function () {
+    return this.data;
+  },
+  clear: function () {
+    this.data = null;
+    this.timestamp = null;
+  },
+};
 
-    try {
-      const response = await fetch(
-        "https://recspot-e6585868d70b.herokuapp.com/sent_recommendations",
-        {
-          method: "GET",
-          credentials: "include",
+async function loadSentRecommendations() {
+  const sentContainer = document.querySelector("#sent-recommendations");
+  const internetMonitor = window.internetMonitor || initInternetMonitor();
+
+  try {
+    // Check internet connectivity
+    const isOnline = window.isOnline && window.isOnline();
+
+    let recommendations;
+
+    if (isOnline) {
+      // Try to fetch fresh data
+      try {
+        const response = await internetMonitor.fetchWithConnectivityCheck(
+          "https://recspot-e6585868d70b.herokuapp.com/sent_recommendations",
+          {
+            method: "GET",
+            credentials: "include",
+          },
+          10000 // 10 second timeout
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
-      );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        recommendations = await response.json();
+
+        // Update cache with fresh data
+        sentRecommendationsCache.set(recommendations);
+
+        console.log("Loaded fresh sent recommendations from server");
+      } catch (networkError) {
+        console.warn(
+          "Network request failed, attempting to use cache:",
+          networkError
+        );
+
+        // If network fails but we have valid cache, use it
+        if (sentRecommendationsCache.isValid()) {
+          recommendations = sentRecommendationsCache.get();
+          showMessage(
+            "Using cached sent recommendations due to connection issues",
+            "error"
+          );
+        } else {
+          throw networkError; // Re-throw if no valid cache
+        }
       }
+    } else {
+      // Offline - use cache if available
+      if (sentRecommendationsCache.isValid()) {
+        recommendations = sentRecommendationsCache.get();
+        showMessage("You're offline. Showing cached sent recommendations", "info");
+      } else if (sentRecommendationsCache.data) {
+        // Use stale cache if no fresh cache available
+        recommendations = sentRecommendationsCache.get();
+        showMessage(
+          "You're offline. Showing older cached sent recommendations",
+          "error"
+        );
+      } else {
+        throw new Error("No internet connection and no cached data available");
+      }
+    }
 
-      const recommendations = await response.json();
+    // Render sent recommendations
+    renderSentRecommendations(recommendations, sentContainer);
+  } catch (error) {
+    console.error("Error loading sent recommendations:", error);
 
-      if (recommendations.length === 0) {
+    // Handle different error types
+    if (
+      error.message.includes("internet connection") ||
+      error.message.includes("connection lost") ||
+      (internetMonitor && internetMonitor.isNetworkError(error))
+    ) {
+      // Try cache as last resort
+      if (sentRecommendationsCache.data) {
+        renderSentRecommendations(sentRecommendationsCache.get(), sentContainer);
+        showMessage(
+          "Connection lost. Showing cached sent recommendations",
+          "error"
+        );
+      } else {
         sentContainer.innerHTML = `
-                <div class="no-recommendations-message">
-                    <p>No recommendations sent yet!</p>
-                    <p>Start recommending songs to your friends.</p>
-                </div>
-            `;
-        return;
-      }
-
-      // Group recommendations by friend
-      const groupedRecommendations = recommendations.reduce((acc, rec) => {
-        const friendName = rec.friend_name || rec.friend_id;
-        if (!acc[friendName]) {
-          acc[friendName] = [];
-        }
-        acc[friendName].push(rec);
-        return acc;
-      }, {});
-
-      let html = "";
-      for (const [friendName, friendRecs] of Object.entries(
-        groupedRecommendations
-      )) {
-        const count = friendRecs.length;
-        const noAvatar =
-          "https://media.istockphoto.com/id/945691510/vector/people-icon-silhouettes-illustration-vector.jpg?s=612x612&w=0&k=20&c=chZcclmonc5T002ErDfMZ6KYz01tfHnd-Hzk4EfMJ6k=";
-        const friendAvatar = friendRecs[0].friend_avatar || noAvatar;
-
-        html += `
-                <div class="recommendation-person" data-person="${friendName}">
-                    <div class="person-header">
-                        <div class="friend-avatar">
-                            <img src="${friendAvatar}" alt="${friendName}">
-                        </div>
-                        <div class="friend-info">
-                            <span class="friend-name">${friendName}</span>
-                            <span class="friend-song-count">${count} song${
-          count > 1 ? "s" : ""
-        } sent</span>
-                        </div>
-                        <button class="expand-btn">▼</button>
-                    </div>
-                    <div class="songs-list hidden">
-                        ${friendRecs
-                          .map(
-                            (rec) => `
-                            <div class="song-item" data-recommendation-id="${
-                              rec.recommendation_id
-                            }">
-                                <div class="song-album-cover">
-                                    <img src="${
-                                      rec.track_cover ||
-                                      "https://via.placeholder.com/60x60/1db954/white?text=♪"
-                                    }" alt="${rec.title}" class="album-cover">
-                                </div>
-                                <div class="song-details">
-                                    <div class="song-info">
-                                        <span class="song-title">${
-                                          rec.title
-                                        }</span>
-                                        <span class="song-artist">${
-                                          rec.artist
-                                        }</span>
-                                    </div>
-                                    <div class="song-actions">
-                                        <div class="song-status">
-                                            ${getStatusIndicator(
-                                              rec.like_dislike
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `
-                          )
-                          .join("")}
-                    </div>
-                </div>
-            `;
-      }
-
-      sentContainer.innerHTML = html;
-    } catch (error) {
-      console.error("Error loading sent recommendations:", error);
-      sentContainer.innerHTML = `
-            <div class="error-message">
-                <p>Error loading sent recommendations. Please try again later.</p>
-            </div>
+          <div class="error-message">
+            <p>No internet connection and no cached data available.</p>
+            <p>Please check your connection and try again.</p>
+            <button onclick="loadSentRecommendations()" class="retry-btn">Retry</button>
+          </div>
         `;
+      }
+    } else {
+      sentContainer.innerHTML = `
+        <div class="error-message">
+          <p>Error loading sent recommendations. Please try again later.</p>
+          <button onclick="loadSentRecommendations()" class="retry-btn">Retry</button>
+        </div>
+      `;
     }
   }
+}
 
   window.loadSentRecommendations = loadSentRecommendations;

@@ -1,127 +1,130 @@
+// Cache for storing recommendations data
+let recommendationsCache = {
+  data: null,
+  timestamp: null,
+  isValid: function () {
+    // Cache is valid for 5 minutes
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+    return (
+      this.data &&
+      this.timestamp &&
+      Date.now() - this.timestamp < CACHE_DURATION
+    );
+  },
+  set: function (data) {
+    this.data = data;
+    this.timestamp = Date.now();
+  },
+  get: function () {
+    return this.data;
+  },
+  clear: function () {
+    this.data = null;
+    this.timestamp = null;
+  },
+};
+
 async function loadReceivedRecommendations() {
   const receivedContainer = document.querySelector("#received-recommendations");
+  const internetMonitor = window.internetMonitor || initInternetMonitor();
 
   try {
-    const response = await fetch(
-      "https://recspot-e6585868d70b.herokuapp.com/recommendations",
-      {
-        method: "GET",
-        credentials: "include",
+    // Check internet connectivity
+    const isOnline = window.isOnline && window.isOnline();
+
+    let recommendations;
+
+    if (isOnline) {
+      // Try to fetch fresh data
+      try {
+        const response = await internetMonitor.fetchWithConnectivityCheck(
+          "https://recspot-e6585868d70b.herokuapp.com/recommendations",
+          {
+            method: "GET",
+            credentials: "include",
+          },
+          10000 // 10 second timeout
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        recommendations = await response.json();
+
+        // Update cache with fresh data
+        recommendationsCache.set(recommendations);
+
+        console.log("Loaded fresh recommendations from server");
+      } catch (networkError) {
+        console.warn(
+          "Network request failed, attempting to use cache:",
+          networkError
+        );
+
+        // If network fails but we have valid cache, use it
+        if (recommendationsCache.isValid()) {
+          recommendations = recommendationsCache.get();
+          showMessage(
+            "Using cached recommendations due to connection issues",
+            "error"
+          );
+        } else {
+          throw networkError; // Re-throw if no valid cache
+        }
       }
-    );
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const recommendations = await response.json();
-
-    if (recommendations.length === 0) {
-      receivedContainer.innerHTML = `
-                <div class="no-recommendations-message">
-                    <p>No recommendations received yet!</p>
-                    <p>Ask your friends to send you some music recommendations.</p>
-                </div>
-            `;
-      return;
-    }
-
-    // Group recommendations by user
-    const groupedRecommendations = recommendations.reduce((acc, rec) => {
-      const userId = rec.friend_name;
-      if (!acc[userId]) {
-        acc[userId] = [];
+    } else {
+      // Offline - use cache if available
+      if (recommendationsCache.isValid()) {
+        recommendations = recommendationsCache.get();
+        showMessage("You're offline. Showing cached recommendations", "info");
+      } else if (recommendationsCache.data) {
+        // Use stale cache if no fresh cache available
+        recommendations = recommendationsCache.get();
+        showMessage(
+          "You're offline. Showing older cached recommendations",
+          "error"
+        );
+      } else {
+        throw new Error("No internet connection and no cached data available");
       }
-      acc[userId].push(rec);
-      return acc;
-    }, {});
-
-    let html = "";
-    for (const [userId, userRecs] of Object.entries(groupedRecommendations)) {
-      const userName = userId; // You might want to fetch display names separately
-      const count = userRecs.length;
-      const noAvatar =
-        "https://media.istockphoto.com/id/945691510/vector/people-icon-silhouettes-illustration-vector.jpg?s=612x612&w=0&k=20&c=chZcclmonc5T002ErDfMZ6KYz01tfHnd-Hzk4EfMJ6k=";
-      const userAvatar = userRecs[0].friend_avatar || noAvatar;
-      html += `
-                <div class="recommendation-person" data-person="${userName}">
-                    <div class="person-header">
-                        <div class="friend-avatar">
-                            <img src="${userAvatar}" alt="${userName}">
-                        </div>
-                        <div class="friend-info">
-                            <span class="friend-name">${userName}</span>
-                            <span class="friend-song-count">${count} song${
-        count > 1 ? "s" : ""
-      } received</span>
-                        </div>
-                        <button class="expand-btn">▼</button>
-                    </div>
-                    <div class="songs-list hidden">
-                        ${userRecs
-                          .map((rec) => {
-                            const likeActive =
-                              rec.like_dislike === true ? "active" : "";
-                            const dislikeActive =
-                              rec.like_dislike === false ? "active" : "";
-                            return `
-                            <div class="song-item" data-rec-id="${
-                              rec.recommendation_id
-                            }" data-song-id="${rec.song_id}">
-                                <div class="song-album-cover">
-                                    <img src="${
-                                      rec.track_cover ||
-                                      "https://via.placeholder.com/60x60/1db954/white?text=♪"
-                                    }" alt="${rec.title}" class="album-cover">
-                                </div>
-                                <div class="song-details">
-                                    <div class="song-info">
-                                        <span class="song-title">${
-                                          rec.title
-                                        }</span>
-                                        <span class="song-artist">${
-                                          rec.artist
-                                        }</span>
-                                    </div>
-                                    <div class="song-actions">
-                                        <button class="like-btn ${likeActive}" data-action="like" title="Like">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                                            </svg>
-                                        </button>
-                                        <button class="dislike-btn ${dislikeActive}" data-action="dislike" title="Dislike">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
-                                            </svg>
-                                        </button>
-                                        <button class="play-btn" title="Play Now">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                                <polygon points="5,3 19,12 5,21"></polygon>
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                          })
-                          .join("")}
-                    </div>
-                </div>
-            `;
     }
 
-    receivedContainer.innerHTML = html;
-
-    // Add event listeners for like/dislike buttons
-    setupRecommendationActions();
+    // Render recommendations
+    renderRecommendations(recommendations, receivedContainer);
   } catch (error) {
     console.error("Error loading recommendations:", error);
-    receivedContainer.innerHTML = `
-            <div class="error-message">
-                <p>Error loading recommendations. Please try again later.</p>
-            </div>
+
+    // Handle different error types
+    if (
+      error.message.includes("internet connection") ||
+      error.message.includes("connection lost") ||
+      (internetMonitor && internetMonitor.isNetworkError(error))
+    ) {
+      // Try cache as last resort
+      if (recommendationsCache.data) {
+        renderRecommendations(recommendationsCache.get(), receivedContainer);
+        showMessage(
+          "Connection lost. Showing cached recommendations",
+          "error"
+        );
+      } else {
+        receivedContainer.innerHTML = `
+          <div class="error-message">
+            <p>No internet connection and no cached data available.</p>
+            <p>Please check your connection and try again.</p>
+            <button onclick="loadReceivedRecommendations()" class="retry-btn">Retry</button>
+          </div>
         `;
+      }
+    } else {
+      receivedContainer.innerHTML = `
+        <div class="error-message">
+          <p>Error loading recommendations. Please try again later.</p>
+          <button onclick="loadReceivedRecommendations()" class="retry-btn">Retry</button>
+        </div>
+      `;
+    }
   }
 }
-
 window.loadReceivedRecommendations = loadReceivedRecommendations;

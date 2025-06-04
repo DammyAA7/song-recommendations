@@ -129,7 +129,6 @@
         handleLikeDislike(action, dislikeBtn, likeBtn);
       });
 
-      // Play button handler (placeholder - doesn't do anything as requested)
       playBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
         // Button doesn't do anything as requested
@@ -155,6 +154,7 @@
             console.error("Failed to play song:", response.statusText);
           }
         } catch (error) {
+          showMessage("Network error. Please check your connection.", "error");
           console.error("Error playing song:", error);
         }
       });
