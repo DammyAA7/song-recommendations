@@ -131,7 +131,7 @@
 
       playBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
-        // Button doesn't do anything as requested
+        
         console.log("Play button clicked for song:", songId);
         try {
           const response = await fetch(

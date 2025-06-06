@@ -33,7 +33,7 @@ app.config.update(
     # Add these important settings
     SESSION_USE_SIGNER=True,
     SESSION_KEY_PREFIX='songrec:',
-    SESSION_FILE_DIR='/tmp/flask_session',  # Ensure this directory exists and is writable
+    SESSION_FILE_DIR='/tmp/flask_session',  
     SESSION_FILE_THRESHOLD=500,
     SESSION_FILE_MODE=384,  # 0o600 in octal
 )
@@ -62,7 +62,7 @@ def get_db_connection():
 
 def refresh_access_token():
     refresh_token = session.get('refresh_token')
-    # If refresh token is not in session, we fetch it from the database
+    # If refresh token is not in session, fetch it from the database
     if not refresh_token:
         conn = get_db_connection()
         user_id = session.get('user_id')
@@ -266,7 +266,6 @@ def callback():
     if not state:
         return return_error_page('State parameter missing')
     
-    # Check state against database instead of session
     # Check state against database instead of session
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -488,35 +487,6 @@ def get_user_id():
     if not user_id:
         return jsonify({'error': 'user_id_not_found'}), 404
     return jsonify({'user_id': user_id}), 200
-
-@app.route('/following', methods=['GET'])
-@ensure_token  # Ensure the access token is valid before proceeding
-def get_following_artists():
-    access_token = session.get('access_token')
-    if not access_token:
-        return jsonify({'error': 'not_authenticated'}), 401
-
-    # Build query parameters. Spotify supports only 'artist' for this endpoint.
-    params = {
-        'type': 'artist',
-        'limit': 50
-    }
-    # optional cursor-based pagination
-    after = request.args.get('after')
-    if after:
-        params['after'] = after
-
-    resp = requests.get(
-        'https://api.spotify.com/v1/me/following',
-        headers={'Authorization': f'Bearer {access_token}'},
-        params=params
-    )
-    try:
-        resp.raise_for_status()
-    except requests.HTTPError as e:
-        return jsonify({'error': 'spotify_api_error', 'details': resp.json()}), resp.status_code
-
-    return jsonify(resp.json())
 
 
 @app.route('/send_friend_request', methods=['POST'])
@@ -932,11 +902,11 @@ def get_user_recommendations():
     if not access_token or not user_id:
         return jsonify({'error': 'not_authenticated'}), 401
 
-    # 1) Single DB query to get everything we need
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # 1) Single DB query to get everything we need
+        
         cursor.execute("""
             SELECT
                 rs.song_id,
@@ -955,7 +925,7 @@ def get_user_recommendations():
         """, (user_id,))
         rows = cursor.fetchall()
 
-        # 2) Batch‐fetch all Spotify tracks
+        # Batch‐fetch all Spotify tracks
         all_ids = [row['song_id'] for row in rows]
         cursor.execute("""
             SELECT song_id, title, artist, track_cover
@@ -1003,11 +973,11 @@ def get_sent_recommendations():
     if not access_token or not user_id:
         return jsonify({'error': 'not_authenticated'}), 401
 
-    # 1) Single DB query
+   
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # 1) Single DB query
+        
         cursor.execute("""
             SELECT
               rs.song_id,
@@ -1035,7 +1005,6 @@ def get_sent_recommendations():
 
         track_map = {row ['song_id']: row for row in song_rows}
 
-        # 3) Build response
         out = []
         for row in rows:
             track = track_map.get(row['song_id'])
