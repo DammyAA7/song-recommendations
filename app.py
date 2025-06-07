@@ -1159,6 +1159,19 @@ def like_recommendation():
         if not rs:
             return jsonify({'error': 'not_found', 'message': 'Song not in that recommendation'}), 404
 
+        cursor.execute('''
+                       SELECT listen_count
+                       FROM recommendation_songs
+                       WHERE recommendation_id = %s AND song_id = %s
+                       ''', (rec_id, song_id))
+        listen_count = cursor.fetchone()
+        if listen_count == 0:
+            # If the song has never been listened to, we can set the like_dislike to None
+            return jsonify({
+                'error': 'not_listened',
+                'message': 'You must listen to the song before liking or disliking it'
+            }), 400
+
         # 4) Update the like_dislike flag
         cursor.execute('''
             UPDATE recommendation_songs
