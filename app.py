@@ -1262,6 +1262,11 @@ def play_song():
     if not song_id:
         return jsonify({'error': 'song_id_required'}), 400
     
+    recommedation_id = request.json.get('recommendation_id')
+    if not recommedation_id:
+        return jsonify({'error': 'recommendation_id_required'}), 400
+    
+    
     device_id = get_chrome_id(access_token)
     if not device_id:
         return jsonify({'error': 'no_active_device_found'}), 404
@@ -1275,6 +1280,22 @@ def play_song():
         }
     )
     if resp.status_code == 204:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                UPDATE recommendation_songs
+                           SET listen_count = listen_count + 1
+                WHERE recommendation_id = %s AND song_id = %s
+            ''', (recommedation_id, song_id))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"Error updating listen count: {e}")
+            return jsonify({'error': 'database_error'}), 500
+        finally:
+            cursor.close()
+            conn.close()
         return jsonify({'message': 'Song is now playing', 'chrome_device_id': device_id}), 200
     else:
         return jsonify({'error': 'spotify_api_error', 'details': resp.json()}), resp.status_code
@@ -1294,6 +1315,31 @@ def get_chrome_id(access_token):
             return d['id']
     # Fallback: no Chrome device found
     return None
+
+def get_listen_count(recommendation_id):
+    """
+    Get the number of times a recommendation has been listened to.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            SELECT listen_count
+            FROM recommendation_songs
+            WHERE recommendation_id = %s
+        """, (recommendation_id,))
+        
+        count = cursor.fetchone()[0]
+        return count
+        
+    except Exception as e:
+        print(f"Error getting listen count: {e}")
+        return 0
+        
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route('/debug_session')
 def debug_session():
