@@ -1166,13 +1166,13 @@ def like_recommendation():
                        ''', (rec_id, song_id))
         listen_count = cursor.fetchone()
 
-        print(f"Listen count for song {song_id} in recommendation {rec_id}: {listen_count}")
+        print(f"Listen count for song {song_id} in recommendation {rec_id}: {listen_count[0]}")
         if listen_count[0] == 0:
             # If the song has never been listened to, we can set the like_dislike to None
             return jsonify({
                 'error': 'not_listened',
                 'message': 'You must listen to the song before liking or disliking it'
-            }), 404
+            }), 400
 
         # 4) Update the like_dislike flag
         cursor.execute('''
