@@ -72,7 +72,7 @@ function setupRecommendationActions() {
             }),
           }
         );
-
+        const data = await response.json();
         // 4. Handle server response
         if (!response.ok) {
           // Server error - revert UI to original state
@@ -84,9 +84,14 @@ function setupRecommendationActions() {
           );
 
           // Show error message to user
-          showMessage("Failed to update. Please try again.", "error");
-
-          console.error("Server error:", response.status, response.statusText, response.message);
+          if (data.error) {
+            showMessage(
+              "You must listen to the song before reacting.",
+              "error"
+            );
+          } else {
+            showMessage("Failed to update. Please try again.", "error");
+          }
         }
         // If response.ok, keep the optimistic UI changes
       } catch (error) {
@@ -95,7 +100,6 @@ function setupRecommendationActions() {
 
         if (error.message.includes("must listen to the song")) {
           // Special case for must listen error
-          showMessage("You must listen to the song before reacting.", "error");
         } else {
           // Show error message to user
           showMessage("Network error. Please check your connection.", "error");
