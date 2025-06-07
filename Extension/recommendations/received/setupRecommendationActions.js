@@ -86,7 +86,7 @@ function setupRecommendationActions() {
           // Show error message to user
           showMessage("Failed to update. Please try again.", "error");
 
-          console.error("Server error:", response.status, response.statusText);
+          console.error("Server error:", response.status, response.statusText, response.message);
         }
         // If response.ok, keep the optimistic UI changes
       } catch (error) {

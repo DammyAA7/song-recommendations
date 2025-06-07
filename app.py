@@ -1170,8 +1170,7 @@ def like_recommendation():
         if listen_count[0] == 0:
             # If the song has never been listened to, we can set the like_dislike to None
             return jsonify({
-                'error': 'not_listened',
-                'message': 'You must listen to the song before liking or disliking it'
+                'error': 'not_listened'
             }), 400
 
         # 4) Update the like_dislike flag
