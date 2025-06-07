@@ -1170,7 +1170,7 @@ def like_recommendation():
             return jsonify({
                 'error': 'not_listened',
                 'message': 'You must listen to the song before liking or disliking it'
-            }), 400
+            }), 404
 
         # 4) Update the like_dislike flag
         cursor.execute('''
