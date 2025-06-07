@@ -1165,6 +1165,8 @@ def like_recommendation():
                        WHERE recommendation_id = %s AND song_id = %s
                        ''', (rec_id, song_id))
         listen_count = cursor.fetchone()
+
+        print(f"Listen count for song {song_id} in recommendation {rec_id}: {listen_count}")
         if listen_count == 0:
             # If the song has never been listened to, we can set the like_dislike to None
             return jsonify({
