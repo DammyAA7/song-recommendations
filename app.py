@@ -1355,6 +1355,91 @@ def get_listen_count(recommendation_id):
         cursor.close()
         conn.close()
 
+@app.route('/send_rec_comment', methods=['POST'])
+@ensure_token  # Ensure the access token is valid before proceeding 
+def send_rec_comment():
+    access_token = session.get('access_token')
+    user_id = session.get('user_id')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 401
+    
+    # Check if the request contains a recommendation_id
+    rec_id = request.json.get('recommendation_id')
+    if not rec_id:
+        return jsonify({'error': 'recommendation_id_required'}), 400
+    
+    comment = request.json.get('comment')
+    if not comment:
+        return jsonify({'error': 'comment_required'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Insert the comment into the database
+        cursor.execute("""
+            INSERT INTO recommendation_comments (recommendation_id, sent_comment)
+            VALUES (%s, %s)
+        """, (rec_id, comment))
+        
+        conn.commit()
+        
+        return jsonify({'message': 'Comment added successfully!'}), 201
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error sending recommendation comment: {e}")
+        return jsonify({'error': 'database_error'}), 500
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route('/get_rec_comments', methods=['GET'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def get_rec_comments():
+    access_token = session.get('access_token')
+    user_id = session.get('user_id')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 401
+    
+    # Check if the request contains a recommendation_id
+    rec_id = request.args.get('recommendation_id')
+    if not rec_id:
+        return jsonify({'error': 'recommendation_id_required'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Retrieve comments for the recommendation
+        cursor.execute("""
+            SELECT received_comment
+            FROM recommendation_comments
+            WHERE recommendation_id = %s
+        """, (rec_id,))
+        
+        comment = cursor.fetcone()
+        if not comment:
+            return jsonify({'error': 'no_comments_found'}), 404
+
+        response = jsonify(comment)
+        
+        return response
+        
+    except Exception as e:
+        print(f"Error retrieving recommendation comments: {e}")
+        return jsonify({'error': 'database_error'}), 500
+        
+    finally:
+        cursor.close()
+        conn.close()
+
 @app.route('/debug_session')
 def debug_session():
     return jsonify({

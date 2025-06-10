@@ -53,7 +53,7 @@ async function loadReceivedRecommendationsSmooth() {
         isFromCache = true;
         // For smooth loading, don't show offline message unless it's the first time
         if (!receivedContainer.querySelector(".recommendation-person")) {
-          showMessage("You're offline. Showing cached recommendations", "error");
+          showMessage("You're offline. Showing cached recommendations", "info");
         }
       } else {
         throw new Error("No internet connection and no cached data available");
@@ -125,7 +125,20 @@ function renderRecommendations(recommendations, container) {
     const noAvatar =
       "https://media.istockphoto.com/id/945691510/vector/people-icon-silhouettes-illustration-vector.jpg?s=612x612&w=0&k=20&c=chZcclmonc5T002ErDfMZ6KYz01tfHnd-Hzk4EfMJ6k=";
     const userAvatar = userRecs[0].friend_avatar || noAvatar;
-
+    const hasComment = Math.random() > 0.6; // 40% chance of having a comment
+              const dummyComments = [
+                "This song reminds me of you! 🎵",
+                "Perfect for your workout playlist 💪",
+                "You have to listen to this RIGHT NOW! 🔥",
+                "Found this and thought of our conversation",
+                "This beat is absolutely insane!",
+                "Reminds me of that concert we went to",
+              ];
+              const comment = hasComment
+                ? dummyComments[
+                    Math.floor(Math.random() * dummyComments.length)
+                  ]
+                : null;
     html += `
       <div class="recommendation-person" data-person="${userName}">
         <div class="person-header">
@@ -156,29 +169,49 @@ function renderRecommendations(recommendations, container) {
                   }" alt="${rec.title}" class="album-cover">
                 </div>
                 <div class="song-details">
-                  <div class="song-info">
-                    <span class="song-title">${rec.title}</span>
-                    <span class="song-artist">${rec.artist}</span>
-                  </div>
-                  <div class="song-actions">
-                    <button class="like-btn ${likeActive}" data-action="like" title="Like">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                      </svg>
-                    </button>
-                    <button class="dislike-btn ${dislikeActive}" data-action="dislike" title="Dislike">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
-                      </svg>
-                    </button>
-                    <button class="play-btn" title="Play Now">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                        <polygon points="5,3 19,12 5,21"></polygon>
-                      </svg>
-                    </button>
+                  <div class="song-info-actions-row">
+                    <div class="song-info">
+                        <span class="song-title">${rec.title}</span>
+                        <span class="song-artist">${rec.artist}</span>
+                      </div>
+                      <div class="song-actions">
+                        <button class="like-btn ${likeActive}" data-action="like" title="Like">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                          </svg>
+                        </button>
+                        <button class="dislike-btn ${dislikeActive}" data-action="dislike" title="Dislike">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
+                          </svg>
+                        </button>
+                        <button class="play-btn" title="Play Now">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5,3 19,12 5,21"></polygon>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="comment-actions">
+                      <button class="reply-btn" data-friend-name="${userName}" data-rec-id="${rec.recommendation_id}" title="Reply to ${userName}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                        </svg>
+                        Reply
+                      </button>
+                    </div>
+                    ${
+                      comment? 
+                      `<div class="song-comment-section">
+                        <div class="comment-bubble">
+                          <span class="comment-text">"${comment}"</span>
+                        </div>
+                      </div>`
+                        : ""
+                    }
                   </div>
                 </div>
-              </div>
+                
             `;
             })
             .join("")}
@@ -186,6 +219,8 @@ function renderRecommendations(recommendations, container) {
       </div>
     `;
   }
+
+  
 
   container.innerHTML = html;
   setupRecommendationActions();
@@ -284,7 +319,22 @@ function renderRecommendationsSmooth(
                 likeActive = rec.like_dislike === true ? "active" : "";
                 dislikeActive = rec.like_dislike === false ? "active" : "";
               }
+              const hasComment = Math.random() > 0.6; // 40% chance of having a comment
+              const dummyComments = [
+                "This song reminds me of you! 🎵",
+                "Perfect for your workout playlist 💪",
+                "You have to listen to this RIGHT NOW! 🔥",
+                "Found this and thought of our conversation",
+                "This beat is absolutely insane!",
+                "Reminds me of that concert we went to",
+              ];
+              const comment = hasComment
+                ? dummyComments[
+                    Math.floor(Math.random() * dummyComments.length)
+                  ]
+                : null;
 
+              // Replace the song item HTML in renderRecommendationsSmooth function with this:
               return `
               <div class="song-item" data-rec-id="${
                 rec.recommendation_id
@@ -296,29 +346,49 @@ function renderRecommendationsSmooth(
                   }" alt="${rec.title}" class="album-cover">
                 </div>
                 <div class="song-details">
-                  <div class="song-info">
-                    <span class="song-title">${rec.title}</span>
-                    <span class="song-artist">${rec.artist}</span>
-                  </div>
-                  <div class="song-actions">
-                    <button class="like-btn ${likeActive}" data-action="like" title="Like">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                      </svg>
-                    </button>
-                    <button class="dislike-btn ${dislikeActive}" data-action="dislike" title="Dislike">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
-                      </svg>
-                    </button>
-                    <button class="play-btn" title="Play Now">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                        <polygon points="5,3 19,12 5,21"></polygon>
-                      </svg>
-                    </button>
+                  <div class="song-info-actions-row">
+                    <div class="song-info">
+                        <span class="song-title">${rec.title}</span>
+                        <span class="song-artist">${rec.artist}</span>
+                      </div>
+                      <div class="song-actions">
+                        <button class="like-btn ${likeActive}" data-action="like" title="Like">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                          </svg>
+                        </button>
+                        <button class="dislike-btn ${dislikeActive}" data-action="dislike" title="Dislike">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"></path>
+                          </svg>
+                        </button>
+                        <button class="play-btn" title="Play Now">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5,3 19,12 5,21"></polygon>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="comment-actions">
+                      <button class="reply-btn" data-friend-name="${userName}" data-rec-id="${rec.recommendation_id}" title="Reply to ${userName}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                        </svg>
+                        Reply
+                      </button>
+                    </div>
+                    ${
+                      comment? 
+                      `<div class="song-comment-section">
+                        <div class="comment-bubble">
+                          <span class="comment-text">"${comment}"</span>
+                        </div>
+                      </div>`
+                        : ""
+                    }
                   </div>
                 </div>
-              </div>
+                
             `;
             })
             .join("")}
@@ -329,8 +399,121 @@ function renderRecommendationsSmooth(
 
   container.innerHTML = html;
   setupRecommendationActions();
+  setupReplyActions();
 }
 
+function setupReplyActions() {
+  document.querySelectorAll(".reply-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const friendName = btn.dataset.friendName;
+      const recId = btn.dataset.recId;
+      showReplyPopup(friendName, recId);
+    });
+  });
+}
+
+// Add this new function to show the reply popup
+function showReplyPopup(friendName, recId) {
+  // Remove any existing popup
+  const existingPopup = document.querySelector(".reply-popup-overlay");
+  if (existingPopup) {
+    existingPopup.remove();
+  }
+
+  // Create popup overlay
+  const popupOverlay = document.createElement("div");
+  popupOverlay.className = "reply-popup-overlay";
+
+  popupOverlay.innerHTML = `
+    <div class="reply-popup">
+      <div class="reply-popup-header">
+        <h3>Reply to ${friendName}</h3>
+        <button class="close-popup-btn" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="reply-popup-body">
+        <textarea 
+          class="reply-textarea" 
+          placeholder="Write your reply..." 
+          maxlength="150"
+          rows="4"
+        ></textarea>
+        <div class="character-count">
+          <span class="current-count">0</span>/150
+        </div>
+      </div>
+      <div class="reply-popup-footer">
+        <button class="cancel-btn" type="button">Cancel</button>
+        <button class="send-reply-btn" type="button" disabled>Send Reply</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(popupOverlay);
+
+  // Get elements
+  const textarea = popupOverlay.querySelector(".reply-textarea");
+  const currentCount = popupOverlay.querySelector(".current-count");
+  const sendBtn = popupOverlay.querySelector(".send-reply-btn");
+  const cancelBtn = popupOverlay.querySelector(".cancel-btn");
+  const closeBtn = popupOverlay.querySelector(".close-popup-btn");
+
+  // Character counter
+  textarea.addEventListener("input", () => {
+    const length = textarea.value.length;
+    currentCount.textContent = length;
+    sendBtn.disabled = length === 0;
+
+    // Color coding for character count
+    if (length > 130) {
+      currentCount.style.color = "#e22134";
+    } else if (length > 100) {
+      currentCount.style.color = "#ffa500";
+    } else {
+      currentCount.style.color = "#b3b3b3";
+    }
+  });
+
+  // Focus textarea
+  textarea.focus();
+
+  // Event listeners
+  const closePopup = () => {
+    popupOverlay.remove();
+  };
+
+  closeBtn.addEventListener("click", closePopup);
+  cancelBtn.addEventListener("click", closePopup);
+
+  // Close on overlay click
+  popupOverlay.addEventListener("click", (e) => {
+    if (e.target === popupOverlay) {
+      closePopup();
+    }
+  });
+
+  // Send reply
+  sendBtn.addEventListener("click", () => {
+    const replyText = textarea.value.trim();
+    if (replyText) {
+      sendReply(friendName, recId, replyText);
+      closePopup();
+    }
+  });
+
+  // Handle Enter key (Ctrl+Enter to send)
+  textarea.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.ctrlKey && !sendBtn.disabled) {
+      sendReply(friendName, recId, textarea.value.trim());
+      closePopup();
+    }
+  });
+}
 // Helper function to show messages (implement based on your UI)
 function showMessage(message, type) {
   console.log(`${type.toUpperCase()}: ${message}`);
@@ -357,5 +540,3 @@ if (window.internetMonitor) {
     }, 2000); // Wait 2 seconds after connection restoration
   });
 }
-window.loadReceivedRecommendationsSmooth = loadReceivedRecommendationsSmooth;
-window.clearRecommendationsCache = clearRecommendationsCache;

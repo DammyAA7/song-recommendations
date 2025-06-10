@@ -44,6 +44,17 @@ CREATE TABLE IF NOT EXISTS recommendation_songs (
     FOREIGN KEY (recommendation_id) REFERENCES recommendations(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS recommendation_comments (
+    recommendation_id INTEGER NOT NULL,
+    sent_comment TEXT NOT NULL, -- Comment sent by the user
+    received_comment TEXT, -- Comment received by the friend
+    FOREIGN KEY (recommendation_id) REFERENCES recommendations(id) ON DELETE CASCADE -- Foreign key with cascade delete
+);
+
+-- Index to optimize queries on recommendation comments by recommendation ID
+CREATE INDEX IF NOT EXISTS idx_recommendation_comments_recommendation_id
+    ON recommendation_comments (recommendation_id);
+
 CREATE TABLE IF NOT EXISTS songs (
     song_id VARCHAR(255) PRIMARY KEY, -- Unique identifier for the song
     title VARCHAR(255) NOT NULL, -- Title of the song
