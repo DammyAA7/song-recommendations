@@ -319,6 +319,17 @@ class FriendsManager {
         `Recommended ${currentSong.title} to ${friendName}!`,
         "success"
       );
+      
+      showCommentPopup({
+        type: "comment",
+        friendName: friendName,
+        recommendationId: message.recommendation_id,
+        songTitle: currentSong.title,
+        onSuccess: (commentText) => {
+          console.log(`Comment added: "${commentText}"`);
+          // You can add additional logic here if needed
+        },
+      });
     } catch (error) {
       console.error("Error sending recommendation:", error);
       let errorMessage;

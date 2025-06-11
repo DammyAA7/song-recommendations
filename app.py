@@ -1091,6 +1091,7 @@ def recommend_song():
         
         return jsonify({
             'message': 'Song successfully recommended!',
+            'recommendation_id': recommendation_id,
             'song_id': song_id,
             'recommended_by': user_id,
             'recommended_to': friend_id
