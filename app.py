@@ -893,6 +893,80 @@ def list_friends():
 def index():
     return 'Welcome to the Song Recommendation API!'
 
+@app.route('/recommend', methods=['POST'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def recommend_song():
+    access_token = session.get('access_token')
+    user_id = session.get('user_id')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 401
+    
+    # Check if the request contains a friend_id
+    friend_id = request.json.get('friend_id')
+    if not friend_id:
+        return jsonify({'error': 'friend_id_required'}), 400
+    if user_id == friend_id:
+        return jsonify({'error': 'cannot_recommend_to_yourself'}), 400
+    
+    song_id = request.json.get('song_id')
+    if not song_id:
+        return jsonify({'error': 'song_id_required'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Check if user is friends with the friend_id
+        cursor.execute("""
+            SELECT EXISTS(
+                SELECT 1 FROM friends
+                WHERE (user_id = %s AND friend_id = %s)
+                    OR (user_id = %s AND friend_id = %s)
+            )
+        """, (user_id, friend_id, friend_id, user_id))
+        
+        if not cursor.fetchone()[0]:
+            return jsonify({'error': 'Not_Friends_with_user'}), 400
+
+        # Check if recommendation already exists
+        cursor.execute('''
+            SELECT EXISTS(
+                SELECT 1
+                FROM recommendations r
+                JOIN recommendation_songs rs ON r.id = rs.recommendation_id
+                WHERE r.user_id = %s AND r.friend_id = %s AND rs.song_id = %s
+            )
+        ''', (user_id, friend_id, song_id))
+        
+        if cursor.fetchone()[0]:
+            return jsonify({'error': 'Song has already been recommended to this user'}), 400
+
+        # Insert new recommendation
+        cursor.execute('INSERT INTO recommendations (user_id, friend_id) VALUES (%s, %s)', (user_id, friend_id))
+        cursor.execute('SELECT lastval()')
+        recommendation_id = cursor.fetchone()[0]
+        cursor.execute('INSERT INTO recommendation_songs (recommendation_id, song_id) VALUES (%s, %s)', (recommendation_id, song_id))
+        
+        conn.commit()
+        
+        return jsonify({
+            'message': 'Song successfully recommended!',
+            'recommendation_id': recommendation_id,
+            'song_id': song_id,
+            'recommended_by': user_id,
+            'recommended_to': friend_id
+        }), 201
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error recommending song: {e}")
+        return jsonify({'error': 'database_error'}), 500
+        
+    finally:
+        cursor.close()
+        conn.close()
+
 # Define a route to get user recommendations
 @app.route('/recommendations', methods=['GET'])
 @ensure_token
