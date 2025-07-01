@@ -125,20 +125,6 @@ function renderRecommendations(recommendations, container) {
     const noAvatar =
       "https://media.istockphoto.com/id/945691510/vector/people-icon-silhouettes-illustration-vector.jpg?s=612x612&w=0&k=20&c=chZcclmonc5T002ErDfMZ6KYz01tfHnd-Hzk4EfMJ6k=";
     const userAvatar = userRecs[0].friend_avatar || noAvatar;
-    const hasComment = Math.random() > 0.6; // 40% chance of having a comment
-              const dummyComments = [
-                "This song reminds me of you! 🎵",
-                "Perfect for your workout playlist 💪",
-                "You have to listen to this RIGHT NOW! 🔥",
-                "Found this and thought of our conversation",
-                "This beat is absolutely insane!",
-                "Reminds me of that concert we went to",
-              ];
-              const comment = hasComment
-                ? dummyComments[
-                    Math.floor(Math.random() * dummyComments.length)
-                  ]
-                : null;
     html += `
       <div class="recommendation-person" data-person="${userName}">
         <div class="person-header">
@@ -193,10 +179,10 @@ function renderRecommendations(recommendations, container) {
                       </div>
                     </div>
                     ${
-                      comment? 
+                      rec.comment? 
                       `<div class="song-comment-section">
                         <div class="comment-bubble">
-                          <span class="comment-text">"${comment}"</span>
+                          <span class="comment-text">"${rec.comment}"</span>
                         </div>
                       </div>`
                         : ""
@@ -317,21 +303,7 @@ function renderRecommendationsSmooth(
                 likeActive = rec.like_dislike === true ? "active" : "";
                 dislikeActive = rec.like_dislike === false ? "active" : "";
               }
-              const hasComment = Math.random() > 0.6; // 40% chance of having a comment
-              const dummyComments = [
-                "This song reminds me of you! 🎵",
-                "Perfect for your workout playlist 💪",
-                "You have to listen to this RIGHT NOW! 🔥",
-                "Found this and thought of our conversation",
-                "This beat is absolutely insane!",
-                "Reminds me of that concert we went to",
-              ];
-              const comment = hasComment
-                ? dummyComments[
-                    Math.floor(Math.random() * dummyComments.length)
-                  ]
-                : null;
-
+    
               // Replace the song item HTML in renderRecommendationsSmooth function with this:
               return `
               <div class="song-item" data-rec-id="${
@@ -368,10 +340,10 @@ function renderRecommendationsSmooth(
                       </div>
                     </div>
                     ${
-                      comment? 
+                      rec.comment? 
                       `<div class="song-comment-section">
                         <div class="comment-bubble">
-                          <span class="comment-text">"${comment}"</span>
+                          <span class="comment-text">"${rec.comment}"</span>
                         </div>
                       </div>`
                         : ""

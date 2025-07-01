@@ -988,12 +988,16 @@ def get_user_recommendations():
                 rs.like_dislike,
                 r.user_id          AS recommended_by,
                 u.spotify_display_name AS friend_name,
-                u.spotify_avatar_url   AS friend_avatar
+                u.spotify_avatar_url   AS friend_avatar,
+                rc.comment,
+                rc.reply
             FROM recommendations r
             JOIN recommendation_songs rs
               ON rs.recommendation_id = r.id
             JOIN users u
               ON u.spotify_user_id   = r.user_id
+            LEFT JOIN recommendation_comments rc
+              ON rc.recommendation_id = r.id
             WHERE r.friend_id = %s
             ORDER BY r.created_at DESC
         """, (user_id,))
@@ -1027,7 +1031,9 @@ def get_user_recommendations():
                 'recommended_by'   : row['recommended_by'],
                 'friend_name'      : row['friend_name'],
                 'friend_avatar'    : row['friend_avatar'],
-                'like_dislike'     : row['like_dislike']  # 1 = like, 0 = dislike, None = pending
+                'like_dislike'     : row['like_dislike'],  # 1 = like, 0 = dislike, None = pending
+                'comment'          : row['comment'],       # Comment from the recommender
+                'reply'            : row['reply'] 
             })
         return jsonify(output)
         
@@ -1393,91 +1399,6 @@ def send_rec_comment():
     except Exception as e:
         conn.rollback()
         print(f"Error sending recommendation comment: {e}")
-        return jsonify({'error': 'database_error'}), 500
-        
-    finally:
-        cursor.close()
-        conn.close()
-
-
-@app.route('/get_comment', methods=['GET'])
-@ensure_token  # Ensure the access token is valid before proceeding
-def get_rec_comment():
-    access_token = session.get('access_token')
-    user_id = session.get('user_id')
-    if not access_token:
-        return jsonify({'error': 'not_authenticated'}), 401
-    if not user_id:
-        return jsonify({'error': 'user_id_not_found'}), 401
-    
-    # Check if the request contains a recommendation_id
-    rec_id = request.args.get('recommendation_id')
-    if not rec_id:
-        return jsonify({'error': 'recommendation_id_required'}), 400
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    try:
-        # Retrieve comments for the recommendation
-        cursor.execute("""
-            SELECT comment
-            FROM recommendation_comments
-            WHERE recommendation_id = %s
-        """, (rec_id,))
-        
-        comment = cursor.fetcone()
-        if not comment:
-            return jsonify({'error': 'no_comments_found'}), 404
-
-        response = jsonify(comment)
-        
-        return response
-        
-    except Exception as e:
-        print(f"Error retrieving recommendation comments: {e}")
-        return jsonify({'error': 'database_error'}), 500
-        
-    finally:
-        cursor.close()
-        conn.close()
-
-@app.route('/get_reply', methods=['GET'])
-@ensure_token  # Ensure the access token is valid before proceeding 
-def get_rec_reply():
-    access_token = session.get('access_token')
-    user_id = session.get('user_id')
-    if not access_token:
-        return jsonify({'error': 'not_authenticated'}), 401
-    if not user_id:
-        return jsonify({'error': 'user_id_not_found'}), 401
-    
-    # Check if the request contains a recommendation_id
-    rec_id = request.args.get('recommendation_id')
-    if not rec_id:
-        return jsonify({'error': 'recommendation_id_required'}), 400
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    try:
-        # Retrieve replies for the recommendation
-        cursor.execute("""
-            SELECT reply
-            FROM recommendation_comments
-            WHERE recommendation_id = %s
-        """, (rec_id,))
-        
-        reply = cursor.fetchone()
-        if not reply:
-            return jsonify({'error': 'no_replies_found'}), 404
-
-        response = jsonify(reply)
-        
-        return response
-        
-    except Exception as e:
-        print(f"Error retrieving recommendation replies: {e}")
         return jsonify({'error': 'database_error'}), 500
         
     finally:
