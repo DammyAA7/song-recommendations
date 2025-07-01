@@ -1390,6 +1390,9 @@ def send_rec_comment():
         cursor.execute("""
             INSERT INTO recommendation_comments (recommendation_id, comment)
             VALUES (%s, %s)
+            ON CONFLICT (recommendation_id)
+            DO UPDATE SET 
+                comment = EXCLUDED.comment
         """, (rec_id, comment))
         
         conn.commit()
@@ -1433,6 +1436,9 @@ def send_rec_reply():
         cursor.execute("""
             INSERT INTO recommendation_comments (recommendation_id, reply)
             VALUES (%s, %s)
+            ON CONFLICT (recommendation_id)
+            DO UPDATE SET
+                reply = EXCLUDED.reply
         """, (rec_id, reply))
         
         conn.commit()
