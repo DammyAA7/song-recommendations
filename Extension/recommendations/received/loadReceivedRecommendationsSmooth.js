@@ -182,7 +182,7 @@ function renderRecommendations(recommendations, container) {
                       rec.comment? 
                       `<div class="song-comment-section">
                         <div class="comment-bubble">
-                          <span class="comment-text">"${rec.comment}"</span>
+                          <span class="comment-text">${rec.comment}</span>
                         </div>
                       </div>`
                         : ""
@@ -343,7 +343,7 @@ function renderRecommendationsSmooth(
                       rec.comment? 
                       `<div class="song-comment-section">
                         <div class="comment-bubble">
-                          <span class="comment-text">"${rec.comment}"</span>
+                          <span class="comment-text">${rec.comment}</span>
                         </div>
                       </div>`
                         : ""
