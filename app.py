@@ -1405,6 +1405,48 @@ def send_rec_comment():
         cursor.close()
         conn.close()
 
+
+@app.route('send_reply', methods=['POST'])
+@ensure_token  # Ensure the access token is valid before proceeding
+def send_rec_reply():
+    access_token = session.get('access_token')
+    user_id = session.get('user_id')
+    if not access_token:
+        return jsonify({'error': 'not_authenticated'}), 401
+    if not user_id:
+        return jsonify({'error': 'user_id_not_found'}), 401
+    
+    # Check if the request contains a recommendation_id
+    rec_id = request.json.get('recommendation_id')
+    if not rec_id:
+        return jsonify({'error': 'recommendation_id_required'}), 400
+    
+    reply = request.json.get('reply')
+    if not reply:
+        return jsonify({'error': 'reply_required'}), 400
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Insert the reply into the database
+        cursor.execute("""
+            INSERT INTO recommendation_comments (recommendation_id, reply)
+            VALUES (%s, %s)
+        """, (rec_id, reply))
+        
+        conn.commit()
+        
+        return jsonify({'message': 'reply added successfully!'}), 201
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"Error sending recommendation reply: {e}")
+        return jsonify({'error': 'database_error'}), 500
+        
+    finally:
+        cursor.close()
+        conn.close()
 @app.route('/debug_session')
 def debug_session():
     return jsonify({

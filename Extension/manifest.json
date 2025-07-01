@@ -39,6 +39,7 @@
             "utils/internetMonitor.js",
             "utils/showCommentPopup.js",
             "utils/sendComment.js",
+            "utils/sendReply.js",
             "popup/FriendRequestsManager.js",
             "popup/createBasePopup.js",
             "popup/showPopupAuth.js",
