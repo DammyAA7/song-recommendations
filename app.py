@@ -1406,7 +1406,7 @@ def send_rec_comment():
         conn.close()
 
 
-@app.route('send_reply', methods=['POST'])
+@app.route('/send_reply', methods=['POST'])
 @ensure_token  # Ensure the access token is valid before proceeding
 def send_rec_reply():
     access_token = session.get('access_token')
@@ -1447,6 +1447,8 @@ def send_rec_reply():
     finally:
         cursor.close()
         conn.close()
+
+
 @app.route('/debug_session')
 def debug_session():
     return jsonify({
