@@ -46,8 +46,8 @@ CREATE TABLE IF NOT EXISTS recommendation_songs (
 
 CREATE TABLE IF NOT EXISTS recommendation_comments (
     recommendation_id INTEGER NOT NULL,
-    sent_comment TEXT NOT NULL, -- Comment sent by the user
-    received_comment TEXT, -- Comment received by the friend
+    comment TEXT NOT NULL, -- Comment sent by the user
+    reply TEXT, -- Comment received by the friend
     FOREIGN KEY (recommendation_id) REFERENCES recommendations(id) ON DELETE CASCADE -- Foreign key with cascade delete
 );
 
