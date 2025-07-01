@@ -38,6 +38,7 @@ class FriendsManager {
       .sort();
     return simplified.join("|");
   }
+  
 
   async initializePolling() {
     try {
@@ -319,7 +320,7 @@ class FriendsManager {
         `Recommended ${currentSong.title} to ${friendName}!`,
         "success"
       );
-      
+
       showCommentPopup({
         type: "comment",
         friendName: friendName,

@@ -38,6 +38,7 @@
             "utils/getCurrentlyPlayingSong.js",
             "utils/internetMonitor.js",
             "utils/showCommentPopup.js",
+            "utils/sendComment.js",
             "popup/FriendRequestsManager.js",
             "popup/createBasePopup.js",
             "popup/showPopupAuth.js",
