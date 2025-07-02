@@ -554,10 +554,11 @@ def send_friend_request():
             return jsonify({'error': 'friend_request_already_received'}), 400
         
         # Insert the friend request into the database
+        mutual_friends_count = find_mutuals(user_id, friend_id)
         cursor.execute("""
-            INSERT INTO requests (sender_id, receiver_id) 
+            INSERT INTO requests (sender_id, receiver_id, mutual_friends_count) 
             VALUES (%s, %s)
-        """, (user_id, friend_id))
+        """, (user_id, friend_id, mutual_friends_count))
         
         conn.commit()
         

@@ -10,10 +10,12 @@
 "host_permissions": [
     "https://open.spotify.com/*"
 ],
+
 "content_scripts": [
     {
         "matches": ["https://open.spotify.com/*"],
         "js": [
+            "lib/supabase.js",
             "friends/loadFriends.js",
             "friends/recommendSongToFriend.js",
             "friends/sendFriendRequest.js",
@@ -40,6 +42,7 @@
             "utils/showCommentPopup.js",
             "utils/sendComment.js",
             "utils/sendReply.js",
+            "utils/friendRequestWebsocket.js",
             "popup/FriendRequestsManager.js",
             "popup/createBasePopup.js",
             "popup/showPopupAuth.js",

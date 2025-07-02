@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS requests (
     sender_id VARCHAR(255) NOT NULL, -- Identifier for the user, cannot be null
     receiver_id VARCHAR(255) NOT NULL, -- Identifier for the friend, cannot be null
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Timestamp when the request was created
+    mutual_friends_count INTEGER DEFAULT 0, -- Count of mutual friends
     FOREIGN KEY (sender_id) REFERENCES users(spotify_user_id) ON DELETE CASCADE, -- Foreign key with cascade delete
     FOREIGN KEY (receiver_id) REFERENCES users(spotify_user_id) ON DELETE CASCADE -- Foreign key with cascade delete
 );
