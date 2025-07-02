@@ -1,6 +1,7 @@
 class FriendRequestsManager {
   constructor() {
     this.requestsList = document.querySelector("#modal-friend-requests-list");
+    this.supabaseClient = window.secureSupabaseClient;
     this.cachedRequests = [];
     this.isModalOpen = false;
     this.initialized = false;
@@ -16,7 +17,7 @@ class FriendRequestsManager {
     // Setup real-time listener
     this.setupRealtimeListener();
     
-    this.isInitialized = true;
+    this.initialized = true;
     console.log('FriendRequestsManager initialized with cached data');
   }
 
@@ -37,44 +38,59 @@ class FriendRequestsManager {
   }
 
   setupRealtimeListener() {
-    // Listen for new friend requests via Supabase subscription
-    if (window.secureSupabaseClient && window.secureSupabaseClient.supabase) {
-      // Unsubscribe from existing listener if any
-      if (this.realtimeSubscription) {
-        this.realtimeSubscription.unsubscribe();
-      }
-
-      this.realtimeSubscription = window.secureSupabaseClient.supabase
-        .channel('friend_requests_updates')
-        .on('postgres_changes', 
-            { 
-                event: 'INSERT', 
-                schema: 'public', 
-                table: 'requests' 
-            }, 
-            (payload) => {
-                console.log('New friend request received via real-time:', payload);
-                this.handleNewRequest(payload.new);
-            }
-        )
-        .on('postgres_changes', 
-            { 
-                event: 'DELETE', 
-                schema: 'public', 
-                table: 'requests' 
-            }, 
-            (payload) => {
-                console.log('Friend request removed via real-time:', payload);
-                this.handleRequestRemoved(payload.old);
-            }
-        )
-        .subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-                console.log('Successfully subscribed to friend request real-time updates');
-            } else if (status === 'CHANNEL_ERROR') {
-                console.error('Real-time subscription error');
+        // Subscribe to real-time changes
+        this.supabaseClient.subscribe('requests', 'INSERT', async (payload) => {
+            const request = await this.fetchRequest(payload.new.id);
+            if (request) {
+              this.handleNewRequest(request);
             }
         });
+
+        this.supabaseClient.subscribe('requests', 'DELETE', (payload) => {
+            this.handleRequestRemoved(payload.old);
+        });
+    }
+
+  async fetchRequest(requestId) {
+        const { data, error } = await this.supabaseClient.from('enriched_requests')
+            .select('*')
+            .eq('id', requestId)
+            .single();
+        
+        if (error) {
+            console.error('Error fetching enriched request:', error);
+            return null;
+        }
+        
+        return {
+            sender_id: data.sender_id,
+            created_at: data.created_at,
+            display_name: data.display_name,
+            avatar_url: data.avatar_url,
+            mutual_friends: data.mutual_friends_count
+        };
+    }
+
+  handleNewRequest(newRequest) {
+    this.cachedRequests.unshift(newRequest); // Add to beginning
+    
+    // Update UI
+    this.updateCacheAndUI();
+    
+    // Show notification
+    showMessage(`New friend request from ${newRequest.display_name}`, "success");
+  }
+
+  handleRequestRemoved(removedRequest) {
+    // Remove from cache
+    const initialLength = this.cachedRequests.length;
+    this.cachedRequests = this.cachedRequests.filter(
+      req => req.sender_id !== removedRequest.sender_id
+    );
+    
+    if (this.cachedRequests.length < initialLength) {
+      console.log('Removed request from cache:', removedRequest.sender_id);
+      this.updateCacheAndUI();
     }
   }
 
@@ -347,61 +363,31 @@ class FriendRequestsManager {
     }
   }
 
-  async updateRequestsBadge() {
-  console.log("Updating friend requests badge");
-  
-  const badge = document.querySelector(".friend-requests-badge");
-  if (!badge) {
-    console.log("No friend requests badge found");
-    return;
-  }
-
-  try {
-    // Use cached data if available and recent
-    let requestCount;
+  updateRequestsBadge() {
+    console.log("Updating friend requests badge");
     
-    if (this.isModalOpen && this.cachedRequests && this.cachedRequests.length > 0) {
-      // Use cached data - more efficient and consistent
-      requestCount = this.cachedRequests.length;
-      console.log(`Using cached count: ${requestCount}`);
-    } else {
-      // Fallback to API call if no cached data
-      console.log("No cached data, fetching count from API");
-      const response = await fetch(
-        "https://recspot-e6585868d70b.herokuapp.com/get_requests_count", 
-        {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            "Cache-Control": "no-cache",
-            Pragma: "no-cache",
-          },
-        }
-      );
-      
-      if (!response.ok) {
-        console.error("Failed to fetch friend requests count:", response.statusText);
-        badge.style.display = "none";
-        return;
-      }
-      
-      const data = await response.json();
-      requestCount = data.requests_count || 0;
-      console.log(`Fetched count from API: ${requestCount}`);
+    const badge = document.querySelector(".friend-requests-badge");
+    if (!badge) {
+      console.log("No friend requests badge found");
+      return;
     }
-    
-    // Update badge display
-    badge.textContent = requestCount;
-    badge.style.display = requestCount > 0 ? "block" : "none";
-    
-    console.log(`Badge updated: ${requestCount} requests`);
-    
-  } catch (error) {
-    console.error("Error updating requests badge:", error);
-    // Hide badge on error to avoid confusion
-    badge.style.display = "none";
+
+    try {
+      // Always use cached data - no API calls needed
+      const requestCount = this.cachedRequests.length;
+      console.log(`Using cached count: ${requestCount}`);
+      
+      // Update badge display
+      badge.textContent = requestCount;
+      badge.style.display = requestCount > 0 ? "block" : "none";
+      
+      console.log(`Badge updated: ${requestCount} requests`);
+      
+    } catch (error) {
+      console.error("Error updating requests badge:", error);
+      badge.style.display = "none";
+    }
   }
-}
 
   animateRequestRemoval(requestId) {
     const requestElement = document.querySelector(

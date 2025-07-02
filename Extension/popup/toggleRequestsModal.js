@@ -50,6 +50,11 @@ async function toggleRequestsModal() {
   if (window.friendRequestManager) {
     console.log("Loading friend requests...");
     try {
+      if (!window.friendRequestManager.initialized) {
+        await window.friendRequestManager.initialize();
+      }
+      
+      // Load the modal content
       window.friendRequestManager.onModalOpen();
 
       // Add a timeout fallback in case the loading takes too long
@@ -93,13 +98,33 @@ document.addEventListener("DOMContentLoaded", async () => {
   console.log("DOM loaded, initializing friend request manager...");
   if (window.friendRequestManager) {
     try {
-      const initialized = await window.friendRequestManager.initializePolling();
-      console.log("Friend request manager initialized:", initialized);
+      console.log("Initializing friend request manager...");
+      await window.friendRequestManager.initialize();
+      console.log("Friend request manager initialized successfully");
+      
+      // Update badge initially
+      window.friendRequestManager.updateRequestsBadge();
     } catch (error) {
       console.error("Error initializing friend request manager:", error);
     }
   } else {
     console.error("Friend request manager not found on window object");
+    
+    // Retry after a delay in case the script is still loading
+    setTimeout(async () => {
+      if (window.friendRequestManager) {
+        try {
+          console.log("Retrying friend request manager initialization...");
+          await window.friendRequestManager.initialize();
+          console.log("Friend request manager initialized successfully (retry)");
+          window.friendRequestManager.updateRequestsBadge();
+        } catch (error) {
+          console.error("Error initializing friend request manager (retry):", error);
+        }
+      } else {
+        console.error("Friend request manager still not available after retry");
+      }
+    }, 1000);
   }
 });
 

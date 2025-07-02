@@ -814,11 +814,15 @@ def find_mutuals(user_id, friend_id):
     
     try:
         cursor.execute("""
-            SELECT f2.friend_id
+            SELECT DISTINCT f1.friend_id
             FROM friends f1
-            JOIN friends f2 ON f1.friend_id = f2.user_id
-            WHERE f1.user_id = %s AND f2.friend_id != %s
-        """, (user_id, friend_id))
+            INNER JOIN friends f2 
+                ON f1.friend_id = f2.friend_id
+            WHERE f1.user_id = %s 
+                AND f2.user_id = %s
+                AND f1.friend_id != %s 
+                AND f1.friend_id != %s
+        """, (user_id, friend_id, user_id, friend_id))
         
         mutuals = cursor.fetchall()
         return len(mutuals)

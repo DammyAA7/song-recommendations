@@ -40,7 +40,7 @@ async function showPopupFriends() {
 
      <button class="floating-requests-btn" id="floating-requests-btn">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 2C13.1 2 14 2.9 14 4C14 5.1 13.1 6 12 6C10.9 6 10 5.1 10 4C10 2.9 10.9 2 12 2ZM21 9V7L15 1H5C3.89 1 3 1.89 3 3V21C3 22.11 3.89 23 5 23H11V21H5V3H13V9H21ZM16 11.5C17.38 11.5 18.5 12.62 18.5 14S17.38 16.5 16 16.5 13.5 15.38 13.5 14 14.62 11.5 16 11.5ZM20 19.5V18.5C20 17.12 17.76 16.5 16 16.5S12 17.12 12 18.5V19.5H20Z"/>
+          <path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V8c0-.55-.45-1-1-1s-1 .45-1 1v2H2c-.55 0-1 .45-1 1s.45 1 1 1h2v2c0 .55.45 1 1 1s1-.45 1-1v-2h2c.55 0 1-.45 1-1s-.45-1-1-1H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
         </svg>
         <span class="floating-badge friend-requests-badge" id="floating-requests-badge"></span>
       </button>
@@ -61,15 +61,13 @@ async function showPopupFriends() {
     window.friendsManager.onModalOpen();
   }
 
-  // Initialize polling if not already done
-  if (
-    window.friendRequestManager &&
-    !window.friendRequestManager.currentUserId
-  ) {
+  // Initialize friend request manager
+  if (window.friendRequestManager && !window.friendRequestManager.initialized) {
     console.log("Initializing friend request manager...");
-    const initialized = await window.friendRequestManager.initializePolling();
-    if (!initialized) {
-      console.error("Failed to initialize friend request manager");
+    try {
+      await window.friendRequestManager.initialize();
+    } catch (error) {
+      console.error("Failed to initialize friend request manager:", error);
     }
   }
   const floatingRequestsBtn = content.querySelector("#floating-requests-btn");
