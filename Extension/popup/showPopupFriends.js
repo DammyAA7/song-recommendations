@@ -57,6 +57,15 @@ async function showPopupFriends() {
   await new Promise(resolve => setTimeout(resolve, 50));
 
   // Load friends when the popup opens
+  if (window.friendsManager && !window.friendsManager.initialized) {
+    console.log("Initializing friends manager...");
+    try {
+      await window.friendsManager.initialize();
+    } catch (error) {
+      console.error("Failed to initialize friends manager:", error);
+    }
+  }
+
   if (window.friendsManager) {
     window.friendsManager.onModalOpen();
   }
@@ -186,7 +195,9 @@ async function showPopupFriends() {
         method: "GET",
         credentials: "include",
       });
+      await window.UserIDUtils.clearUserId();
       closePopup();
+      showMessage("Logged Out Successfully", "success");
     } catch (error) {
       console.error("Logout error:", error);
     }

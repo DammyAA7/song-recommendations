@@ -467,8 +467,19 @@ function showReplyPopup(friendName, recId) {
     popupOverlay.remove();
   };
 
-  closeBtn.addEventListener("click", closePopup);
-  cancelBtn.addEventListener("click", closePopup);
+  closeBtn.addEventListener("click", (e) => {
+    if (e.target === closeBtn) {
+      closePopup();
+      showMessage("Reply cancelled", "info");
+    }
+  });
+
+  cancelBtn.addEventListener("click", (e) => {
+    if (e.target === cancelBtn) {
+      closePopup();
+      showMessage("Reply cancelled", "info");
+    }
+  });
 
   // Close on overlay click
   popupOverlay.addEventListener("click", (e) => {

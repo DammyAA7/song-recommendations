@@ -34,6 +34,14 @@ async function handleAuthFlow() {
         // Handle the auth flow
         await handleAuthWindow(authWindow);
 
+        // Store user ID after successful auth
+        const userId = await window.UserIDUtils.fetchAndStoreUserId();
+        if (userId) {
+          console.log("User ID stored successfully:", userId);
+        } else {
+          console.error("Failed to store user ID");
+        }
+
         // After successful auth, close current popup and show friends
         console.log("Auth completed successfully, showing friends popup");
         closePopup();

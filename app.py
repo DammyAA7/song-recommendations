@@ -22,7 +22,7 @@ app.config.update(
     # Session configuration
     SESSION_TYPE='filesystem',
     SESSION_PERMANENT=True,
-    PERMANENT_SESSION_LIFETIME=timedelta(hours=24),
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=336),#logout after 14 days
     
     # Cookie configuration
     SESSION_COOKIE_NAME='songrec_session',

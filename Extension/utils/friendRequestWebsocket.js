@@ -7,15 +7,22 @@ class SecureSupabaseClient {
     }
 
     // Generic event subscription system
-    subscribe(table, event, callback) {
+    subscribe(table, event, filter, callback) {
+        const subscriptionConfig = { 
+            event: event, 
+            schema: 'public', 
+            table: table
+        };
+
+        // Only add filter if it's provided and not null
+        if (filter) {
+            subscriptionConfig.filter = filter;
+        }
+
         const channel = this.supabase
-            .channel(`${table}_${event}_changes`)
-            .on('postgres_changes', { 
-                event: event, 
-                schema: 'public', 
-                table: table 
-            }, (payload) => {
-                // Wrap the payload to match expected format
+            .channel(`${table}_${event}_changes_${Date.now()}`) // Make channel names unique
+            .on('postgres_changes', subscriptionConfig, (payload) => {
+                console.log(`${event} event received:`, payload); // Debug log
                 callback({
                     new: payload.new,
                     old: payload.old,
@@ -24,7 +31,7 @@ class SecureSupabaseClient {
             })
             .subscribe();
         
-        const key = `${table}_${event}`;
+        const key = `${table}_${event}_${filter || 'no_filter'}`;
         this.eventHandlers.set(key, channel);
         return channel;
     }

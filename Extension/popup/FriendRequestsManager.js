@@ -1,7 +1,7 @@
 class FriendRequestsManager {
   constructor() {
     this.requestsList = document.querySelector("#modal-friend-requests-list");
-    this.supabaseClient = window.secureSupabaseClient;
+    this.supabaseClient = null;
     this.cachedRequests = [];
     this.isModalOpen = false;
     this.initialized = false;
@@ -11,14 +11,39 @@ class FriendRequestsManager {
   }
 
   async initialize() {
-    // Load initial data from API
-    await this.loadInitialRequests();
+    try {
+      // Wait for supabaseClient to be available
+      await this.waitForSupabaseClient();
+      
+      // Load initial data from API
+      await this.loadInitialRequests();
+      
+      // Setup real-time listener
+      this.setupRealtimeListener();
+      
+      this.initialized = true;
+      console.log('FriendRequestsManager initialized with cached data');
+    } catch (error) {
+      console.error('Failed to initialize FriendRequestsManager:', error);
+      throw error;
+    }
+  }
+
+  async waitForSupabaseClient() {
+    // Wait for the supabaseClient to be available
+    let attempts = 0;
+    const maxAttempts = 50; // Wait up to 5 seconds
     
-    // Setup real-time listener
-    this.setupRealtimeListener();
+    while (!window.secureSupabaseClient && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
     
-    this.initialized = true;
-    console.log('FriendRequestsManager initialized with cached data');
+    if (!window.secureSupabaseClient) {
+      throw new Error('SecureSupabaseClient not available after waiting');
+    }
+    
+    this.supabaseClient = window.secureSupabaseClient;
   }
 
   async loadInitialRequests() {
@@ -39,14 +64,17 @@ class FriendRequestsManager {
 
   setupRealtimeListener() {
         // Subscribe to real-time changes
-        this.supabaseClient.subscribe('requests', 'INSERT', async (payload) => {
+        const currentUserId = window.UserIDUtils.getCurrentUserId();
+        this.supabaseClient.subscribe('requests', 'INSERT', `receiver_id=eq.${currentUserId}`, async (payload) => {
             const request = await this.fetchRequest(payload.new.id);
+            console.log('Payload received:', payload);
             if (request) {
               this.handleNewRequest(request);
             }
         });
 
-        this.supabaseClient.subscribe('requests', 'DELETE', (payload) => {
+        this.supabaseClient.subscribe('requests', 'DELETE', null, (payload) => {
+            console.log('Request removed:', payload);
             this.handleRequestRemoved(payload.old);
         });
     }
@@ -63,6 +91,7 @@ class FriendRequestsManager {
         }
         
         return {
+            id: data.id,
             sender_id: data.sender_id,
             created_at: data.created_at,
             display_name: data.display_name,
@@ -84,12 +113,14 @@ class FriendRequestsManager {
   handleRequestRemoved(removedRequest) {
     // Remove from cache
     const initialLength = this.cachedRequests.length;
+    console.log('id:', removedRequest.id);
+    console.log('Cached requests before removal:', this.cachedRequests);
     this.cachedRequests = this.cachedRequests.filter(
-      req => req.sender_id !== removedRequest.sender_id
+      req => req.id !== removedRequest.id
     );
     
     if (this.cachedRequests.length < initialLength) {
-      console.log('Removed request from cache:', removedRequest.sender_id);
+      showMessage(`A Friend request has been removed`, "info");
       this.updateCacheAndUI();
     }
   }
@@ -140,47 +171,19 @@ class FriendRequestsManager {
     }
   }
 
-  checkForNewRequests(currentRequests) {
-    if (!this.cachedRequests.length) return; // First load
-
-    const existingIds = new Set(
-      this.cachedRequests.map((req) => req.sender_id)
-    );
-    const newRequests = currentRequests.filter(
-      (req) => !existingIds.has(req.sender_id)
-    );
-
-    // Show notification for new requests
-    newRequests.forEach((request) => {
-      showMessage(`New friend request from ${request.display_name}`, "success");
-    });
-  }
-
   async loadModalFriendRequests() {
     try {
-    
-      // If we have cached data and it's recent (< 10 seconds), use cache
-      const cacheAge = this.lastFetchTime
-        ? Date.now() - this.lastFetchTime
-        : Infinity;
-      if (this.cachedRequests.length > 0 && cacheAge < 10000) {
-        console.log("Using cached friend requests");
-        this.renderRequests();
-        this.updateRequestsBadge();
-        return;
+      // If not initialized, wait for initialization
+      if (!this.initialized) {
+        console.log('Manager not initialized yet, waiting...');
+        await this.initialize();
       }
-      // Otherwise fetch fresh data
-      const requests = await this.fetchFriendRequests();
-      if (requests) {
-        console.log("Loaded friend requests from API");
-        this.cachedRequests = requests;
-        console.log("Cached friend requests:", this.cachedRequests);
-        this.lastRequestsHash = this.generateRequestsHash(requests);
-        this.renderRequests();
-        this.updateRequestsBadge();
-      } else {
-        this.renderError();
-      }
+
+      // Always use cached data - no more API calls needed
+      console.log("Using cached friend requests");
+      this.renderRequests();
+      this.updateRequestsBadge();
+      
     } catch (error) {
       console.error("Error loading friend requests:", error);
       this.renderError();
@@ -306,12 +309,6 @@ class FriendRequestsManager {
           this.updateCacheAndUI();
           this.updateRequestsBadge();
         }, 300);
-
-        if (window.friendsManager) {
-          window.friendsManager.refreshFriends();
-        } else {
-          loadFriends();
-        }
 
         showMessage("Friend request accepted!");
       } else {

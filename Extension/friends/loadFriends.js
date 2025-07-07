@@ -1,29 +1,130 @@
 class FriendsManager {
   constructor() {
+    this.supabaseClient = null;
     this.friendsList = null;
     this.cachedFriends = [];
     this.isModalOpen = false;
-    this.currentUserId = null;
-
-    // Polling configuration
-    this.pollingInterval = null;
-    this.pollingFrequency = 45000; // 45 seconds (less frequent than friend requests)
+    this.initialized = false;
     this.lastFetchTime = null;
-    this.lastFriendsHash = null; // For change detection
-
-    // Adaptive polling
-    this.consecutiveNoChanges = 0;
-    this.maxConsecutiveNoChanges = 6; // After 6 checks with no changes, slow down
-    this.slowPollingFrequency = 90000; // 1.5 minutes when inactive
-
-    // Background polling (less frequent when modal is closed)
-    this.backgroundPollingFrequency = 180000; // 3 minutes
-    this.isBackgroundPolling = false;
-    this.isPolling = false;
+    this.lastFriendsHash = null;
 
     // No avatar fallback
     this.noAvatar =
       "https://media.istockphoto.com/id/945691510/vector/people-icon-silhouettes-illustration-vector.jpg?s=612x612&w=0&k=20&c=chZcclmonc5T002ErDfMZ6KYz01tfHnd-Hzk4EfMJ6k=";
+  }
+
+  async initialize() {
+    try {
+      // Wait for supabaseClient to be available
+      await this.waitForSupabaseClient();
+      
+      // Load initial data from API
+      await this.loadInitialFriends();
+      
+      // Setup real-time listener
+      this.setupRealtimeListener();
+      
+      this.initialized = true;
+      console.log('FriendsManager initialized with cached data');
+    } catch (error) {
+      console.error('Failed to initialize FriendsManager:', error);
+      throw error;
+    }
+  }
+
+  async waitForSupabaseClient() {
+    // Wait for the supabaseClient to be available
+    let attempts = 0;
+    const maxAttempts = 50; // Wait up to 5 seconds
+    
+    while (!window.secureSupabaseClient && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
+    
+    if (!window.secureSupabaseClient) {
+      throw new Error('SecureSupabaseClient not available after waiting');
+    }
+    
+    this.supabaseClient = window.secureSupabaseClient;
+  }
+
+  setupRealtimeListener() {
+        // Subscribe to real-time changes
+        const currentUserId = window.UserIDUtils.getCurrentUserId();
+        this.supabaseClient.subscribe('friends', 'INSERT', `user_id=eq.${currentUserId}`, async (payload) => {
+            const friend = await this.fetchFriendDetails(payload.new.friend_id);
+            if (friend) {
+              this.handleNewFriend(friend);
+            }
+        });
+
+        this.supabaseClient.subscribe('friends', 'DELETE', null, (payload) => {
+            console.log('Friend removed:', payload.old);
+            this.handleRemovedFriend(payload.old);
+        });
+    }
+
+  
+  async fetchFriendDetails(friendId) {
+        const { data, error } = await this.supabaseClient.from('enriched_friends')
+            .select('*')
+            .eq('friend_id', friendId)
+            .single();
+        
+        if (error) {
+            console.error('Error fetching enriched friends:', error);
+            return null;
+        }
+        
+        return {
+            friend_id: data.friend_id,
+            display_name: data.display_name,
+            avatar_url: data.avatar_url
+        };
+    }
+
+  handleNewFriend(newFriend) {
+    this.cachedFriends.unshift(newFriend); // Add to beginning
+    
+    // Update UI
+    this.updateCacheAndUI();
+    
+    // Show notification
+    showMessage(`Friends with ${newFriend.display_name}`, "success");
+  }
+
+  handleRemovedFriend(removedFriend) {
+    // Remove from cached friends
+    const initialLength = this.cachedFriends.length;
+    console.log('Current cached friends:', this.cachedFriends);
+    this.cachedFriends = this.cachedFriends.filter(
+      friend => friend.spotify_user_id !== removedFriend.friend_id
+    );
+
+    if (this.cachedFriends.length < initialLength) {
+      // Show notification
+      showMessage(`Friend removed`, "info");
+      // Update UI
+      this.updateCacheAndUI();
+    }
+    
+  }
+
+  async loadInitialFriends() {
+    try {
+      console.log('Loading initial friend from API...');
+      const friends = await this.fetchFriends();
+      
+      if (friends) {
+        this.cachedFriends = friends;
+        this.lastFriendsHash = this.generateFriendsHash(friends);
+        this.lastFetchTime = Date.now();
+        console.log(`Cached ${friends.length} friends`);
+      }
+    } catch (error) {
+      console.error('Error loading initial friends:', error);
+    }
   }
 
   getFriendsList() {
@@ -38,99 +139,8 @@ class FriendsManager {
       .sort();
     return simplified.join("|");
   }
+
   
-
-  async initializePolling() {
-    try {
-      this.currentUserId = await this.getCurrentUserId();
-      if (!this.currentUserId) {
-        console.error("No current user ID found");
-        return false;
-      }
-
-      // Start polling
-      this.startPolling();
-      return true;
-    } catch (error) {
-      console.error("Error initializing friends polling:", error);
-      return false;
-    }
-  }
-
-  startPolling() {
-    // Clear any existing interval
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
-    }
-
-    const pollFrequency = this.isModalOpen
-      ? this.consecutiveNoChanges >= this.maxConsecutiveNoChanges
-        ? this.slowPollingFrequency
-        : this.pollingFrequency
-      : this.backgroundPollingFrequency;
-
-    this.pollingInterval = setInterval(() => {
-      this.pollForUpdates();
-    }, pollFrequency);
-
-    console.log(
-      `Friends polling started with ${pollFrequency / 1000}s interval`
-    );
-  }
-
-  async pollForUpdates() {
-    try {
-      // Don't poll if we're in the middle of an API call
-      if (this.isPolling) return;
-
-      this.isPolling = true;
-
-      const friends = await this.fetchFriends();
-
-      if (friends) {
-        const newHash = this.generateFriendsHash(friends);
-
-        // Only update if data has changed
-        if (newHash !== this.lastFriendsHash) {
-          console.log("Friends list updated");
-          const oldFriendsCount = this.cachedFriends.length;
-          this.cachedFriends = friends;
-          this.lastFriendsHash = newHash;
-          this.consecutiveNoChanges = 0;
-
-          // Only render if modal is open
-          if (this.isModalOpen) {
-            this.renderFriends();
-          }
-
-          // Check for new friends and show notifications
-          this.checkForNewFriends(friends, oldFriendsCount);
-        } else {
-          this.consecutiveNoChanges++;
-          console.log(
-            `No friends changes detected (${this.consecutiveNoChanges} consecutive)`
-          );
-        }
-
-        if (this.isModalOpen && this.cachedFriends.length > 0) {
-          this.renderFriends();
-        }
-
-        // Adjust polling frequency based on activity
-        if (this.consecutiveNoChanges >= this.maxConsecutiveNoChanges) {
-          this.startPolling(); // Restart with slower frequency
-        }
-      }
-    } catch (error) {
-      console.error("Error during friends polling:", error);
-      this.consecutiveNoChanges++;
-      if (this.isModalOpen && this.cachedFriends.length > 0) {
-        this.renderFriends();
-      }
-    } finally {
-      this.isPolling = false;
-    }
-  }
 
   async fetchFriends() {
     try {
@@ -161,47 +171,18 @@ class FriendsManager {
     }
   }
 
-  checkForNewFriends(currentFriends, oldCount) {
-    const newCount = currentFriends.length;
-
-    // If we have more friends than before, show notification
-    if (oldCount > 0 && newCount > oldCount) {
-      const newFriendsCount = newCount - oldCount;
-      showMessage(
-        `${newFriendsCount} new friend${newFriendsCount > 1 ? "s" : ""} added!`,
-        "success"
-      );
-    }
-  }
-
   async loadFriends() {
     try {
       // Show loading state immediately
       this.renderLoading();
-      // Initialize polling if not already done
-      if (!this.currentUserId) {
-        await this.initializePolling();
-      }
 
-      // If we have cached data and it's recent (< 15 seconds), use cache
-      const cacheAge = this.lastFetchTime
-        ? Date.now() - this.lastFetchTime
-        : Infinity;
-      if (this.cachedFriends.length > 0 && cacheAge < 15000) {
+      // Always use cached data - no API calls in loadFriends
+      if (this.cachedFriends.length > 0) {
         console.log("Using cached friends data");
         this.renderFriends();
-        return;
-      }
-
-      // Otherwise fetch fresh data
-      const friends = await this.fetchFriends();
-      if (friends !== null) {
-        console.log("Loaded friends from API");
-        this.cachedFriends = friends;
-        this.lastFriendsHash = this.generateFriendsHash(friends);
-        this.renderFriends();
       } else {
-        this.renderError();
+        console.log("No cached friends available");
+        this.renderNoFriends();
       }
     } catch (error) {
       console.error("Error loading friends:", error);
@@ -227,14 +208,9 @@ class FriendsManager {
 
     if (!this.cachedFriends || !this.cachedFriends.length) {
       console.log("No friends to display");
-      friendsList.innerHTML = `
-        <div class="no-friends-message">
-          <p>No friends yet! Add some friends to start sharing music recommendations.</p>
-        </div>
-      `;
+      this.renderNoFriends();
       return;
     }
-
     console.log("Rendering friends:", this.cachedFriends.length);
     const friendsHTML = this.cachedFriends
       .map((friend) => this.createFriendHTML(friend))
@@ -242,6 +218,17 @@ class FriendsManager {
 
     friendsList.innerHTML = friendsHTML;
     this.attachEventListeners();
+  }
+
+  renderNoFriends() {
+    const friendsList = this.getFriendsList();
+    if (friendsList) {
+      friendsList.innerHTML = `
+        <div class="no-friends-message">
+          <p>No friends yet! Add some friends to start sharing music recommendations.</p>
+        </div>
+      `;
+    }
   }
 
   createFriendHTML(friend) {
@@ -375,16 +362,11 @@ class FriendsManager {
   // Lifecycle management
   onModalOpen() {
     this.isModalOpen = true;
-    this.isBackgroundPolling = false;
-    this.consecutiveNoChanges = 0; // Reset when user opens modal
-    this.startPolling(); // Switch to active polling
     this.loadFriends();
   }
 
   onModalClose() {
     this.isModalOpen = false;
-    this.isBackgroundPolling = true;
-    this.startPolling(); // Switch to background polling
     const friendsList = this.getFriendsList();
     if (friendsList && this.handleRecommendClick) {
       console.log("Removing event listener for recommend clicks");
@@ -392,69 +374,16 @@ class FriendsManager {
     }
   }
 
-  async refreshFriends() {
-    console.log("Manual friends refresh triggered");
-    this.consecutiveNoChanges = 0;
-    const friends = await this.fetchFriends();
-    if (friends !== null) {
-      this.cachedFriends = friends;
-      this.lastFriendsHash = this.generateFriendsHash(friends);
-      if (this.isModalOpen) {
-        this.renderFriends();
-      }
+  updateCacheAndUI() {
+    // Update hash
+    this.lastFriendsHash = this.generateFriendsHash(this.cachedFriends);
+    
+    // If modal is open, refresh the UI
+    if (this.isModalOpen) {
+      this.renderFriends();
     }
   }
 
-  cleanup() {
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
-      this.pollingInterval = null;
-    }
-    console.log("Friends polling stopped");
-  }
-
-  // Utility methods
-  async getCurrentUserId() {
-    try {
-      const response = await fetch(
-        "https://recspot-e6585868d70b.herokuapp.com/get_user_id",
-        {
-          method: "GET",
-          credentials: "include",
-        }
-      );
-
-      if (!response.ok) {
-        console.error("Failed to get user ID:", response.statusText);
-        return null;
-      }
-
-      const data = await response.json();
-      return data?.user_id || null;
-    } catch (error) {
-      console.error("Error getting user ID:", error);
-      return null;
-    }
-  }
-
-  // Method to manually add a friend to cache (called when accepting friend request)
-  addFriendToCache(friendData) {
-    // Check if friend already exists
-    const exists = this.cachedFriends.some(
-      (friend) => friend.spotify_user_id === friendData.spotify_user_id
-    );
-
-    if (!exists) {
-      this.cachedFriends.push(friendData);
-      this.lastFriendsHash = this.generateFriendsHash(this.cachedFriends);
-
-      if (this.isModalOpen) {
-        this.renderFriends();
-      }
-
-      console.log("Friend added to cache:", friendData.display_name);
-    }
-  }
 }
 
 // Create global instance and replace the original loadFriends function

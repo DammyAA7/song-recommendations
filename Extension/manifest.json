@@ -43,6 +43,7 @@
             "utils/sendComment.js",
             "utils/sendReply.js",
             "utils/friendRequestWebsocket.js",
+            "utils/userId.js",
             "popup/FriendRequestsManager.js",
             "popup/createBasePopup.js",
             "popup/showPopupAuth.js",

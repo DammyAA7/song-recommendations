@@ -203,12 +203,12 @@ function renderSentRecommendations(recommendations, container) {
                     <span class="song-title">${rec.title}</span>
                     <span class="song-artist">${rec.artist}</span>
                   </div>
-                  <div class="song-actions">
+                </div>
+                <div class="song-actions">
                     <div class="song-status">
                       ${getStatusIndicator(rec.like_dislike)}
                     </div>
                   </div>
-                </div>
               </div>
             `
             )
@@ -306,12 +306,12 @@ function renderSentRecommendationsSmooth(
                     <span class="song-title">${rec.title}</span>
                     <span class="song-artist">${rec.artist}</span>
                   </div>
-                  <div class="song-actions">
+                </div>
+                <div class="song-actions">
                     <div class="song-status">
                       ${getStatusIndicator(rec.like_dislike)}
                     </div>
                   </div>
-                </div>
               </div>
             `
             )
