@@ -557,7 +557,7 @@ def send_friend_request():
         mutual_friends_count = find_mutuals(user_id, friend_id)
         cursor.execute("""
             INSERT INTO requests (sender_id, receiver_id, mutual_friends_count) 
-            VALUES (%s, %s)
+            VALUES (%s, %s, %s)
         """, (user_id, friend_id, mutual_friends_count))
         
         conn.commit()

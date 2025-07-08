@@ -5,6 +5,8 @@ async function sendFriendRequest(friendInput) {
 
   const username = extractSpotifyUsername(friendInput);
 
+  console.log("Sending friend request to:", username);
+
   if (!username) {
     showMessage("Please enter a valid Spotify username or profile URL", "error");
     return;

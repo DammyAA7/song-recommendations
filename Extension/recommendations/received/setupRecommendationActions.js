@@ -73,6 +73,7 @@ function setupRecommendationActions() {
           }
         );
         const data = await response.json();
+
         // 4. Handle server response
         if (!response.ok) {
           // Server error - revert UI to original state
@@ -92,8 +93,24 @@ function setupRecommendationActions() {
           } else {
             showMessage("Failed to update. Please try again.", "error");
           }
+        } else {
+          // SUCCESS: Update cache with new like/dislike state
+          // Dispatch custom event to notify ReceivedRecsManager
+          const event = new CustomEvent("recommendationLikeUpdated", {
+            detail: {
+              recommendationId: recId,
+              songId: songId,
+              action: action,
+              likeDislike:
+                action === "like" ? true : action === "dislike" ? false : null,
+            },
+          });
+          document.dispatchEvent(event);
+
+          console.log(
+            `Successfully updated recommendation ${recId} with action: ${action}`
+          );
         }
-        // If response.ok, keep the optimistic UI changes
       } catch (error) {
         // Network error - revert UI to original state
         revertUI(originalTargetState, originalOtherState, targetBtn, otherBtn);

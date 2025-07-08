@@ -54,7 +54,7 @@ async function showPopupFriends() {
 
   document.body.appendChild(popup);
 
-  await new Promise(resolve => setTimeout(resolve, 50));
+  await new Promise((resolve) => setTimeout(resolve, 50));
 
   // Load friends when the popup opens
   if (window.friendsManager && !window.friendsManager.initialized) {
@@ -114,9 +114,7 @@ async function showPopupFriends() {
   const tabContents = content.querySelectorAll(".tab-content");
 
   tabBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      cleanupSentRecommendations();
-      cleanupReceivedRecommendations();
+    btn.addEventListener("click", async () => {
       // Remove active class from all tabs
       tabBtns.forEach((b) => b.classList.remove("active"));
       tabContents.forEach((c) => c.classList.add("hidden"));
@@ -129,7 +127,24 @@ async function showPopupFriends() {
 
         // Load recommendations when received tab is clicked
         if (btn.dataset.tab === "received") {
-          initializeReceivedRecommendations();
+          if (
+            window.receivedRecsManager &&
+            !window.receivedRecsManager.initialized
+          ) {
+            console.log("Initializing received recommendations manager...");
+            try {
+              await window.receivedRecsManager.initialize();
+            } catch (error) {
+              console.error(
+                "Failed to initialize received recommendations manager:",
+                error
+              );
+            }
+          }
+          if (window.receivedRecsManager) {
+            console.log("Received recommendations manager already initialized");
+            window.receivedRecsManager.onModalOpen();
+          }
         }
         // Load sent recommendations when sent tab is clicked
         else if (btn.dataset.tab === "sent") {
@@ -156,6 +171,10 @@ async function showPopupFriends() {
   });
 
   const handlePopupClose = () => {
+    if (window.receivedRecsManager){
+      window.receivedRecsManager.onModalClose();
+    }
+    
     if (window.friendsManager) {
       window.friendsManager.onModalClose();
     }
