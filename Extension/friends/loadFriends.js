@@ -384,6 +384,17 @@ class FriendsManager {
     }
   }
 
+  clearCache(){
+    this.cachedFriends = [];
+    this.lastFetchTime = null;
+    this.lastFriendsHash = null;
+
+    this.isModalOpen = false;
+    this.initialized = false;
+    this.friendsList = null;
+    console.log("Friends cache cleared");
+  }
+
 }
 
 // Create global instance and replace the original loadFriends function

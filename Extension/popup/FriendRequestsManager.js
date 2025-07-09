@@ -459,6 +459,22 @@ class FriendRequestsManager {
 
     console.log(`Cache updated: ${this.cachedRequests.length} requests`);
   }
+
+  clearCache() {
+    // Clear all cached data
+    this.cachedRequests = [];
+    this.lastRequestsHash = null;
+    this.lastFetchTime = null;
+
+    // Clear container reference
+    this.requestsList = null;
+
+    // Reset flags
+    this.isModalOpen = false;
+    this.initialized = false;
+
+    console.log("FriendRequestsManager cache cleared");
+  }
 }
 
 window.friendRequestManager = new FriendRequestsManager();

@@ -148,7 +148,24 @@ async function showPopupFriends() {
         }
         // Load sent recommendations when sent tab is clicked
         else if (btn.dataset.tab === "sent") {
-          initializeSentRecommendations();
+          if (
+            window.sentRecsManager &&
+            !window.sentRecsManager.initialized
+          ) {
+            console.log("Initializing received recommendations manager...");
+            try {
+              await window.sentRecsManager.initialize();
+            } catch (error) {
+              console.error(
+                "Failed to initialize received recommendations manager:",
+                error
+              );
+            }
+          }
+          if (window.sentRecsManager) {
+            console.log("Sent recommendations manager already initialized");
+            window.sentRecsManager.onModalOpen();
+          }
         }
       }
     });
@@ -171,10 +188,14 @@ async function showPopupFriends() {
   });
 
   const handlePopupClose = () => {
-    if (window.receivedRecsManager){
+    if (window.receivedRecsManager) {
       window.receivedRecsManager.onModalClose();
     }
-    
+
+    if (window.sentRecsManager) { 
+      window.sentRecsManager.onModalClose();
+    }
+
     if (window.friendsManager) {
       window.friendsManager.onModalClose();
     }
@@ -215,6 +236,23 @@ async function showPopupFriends() {
         credentials: "include",
       });
       await window.UserIDUtils.clearUserId();
+
+      if (window.receivedRecsManager) {
+        window.receivedRecsManager.clearCache();
+      }
+
+      if (window.sentRecManager) {
+        window.sentRecManager.clearCache();
+      }
+
+      if (window.friendRequestManager){
+        window.friendRequestManager.clearCache();
+      }
+
+      if (window.friendsManager) {
+        window.friendsManager.clearCache();
+      }
+
       closePopup();
       showMessage("Logged Out Successfully", "success");
     } catch (error) {

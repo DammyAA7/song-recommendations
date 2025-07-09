@@ -307,11 +307,7 @@ function renderSentRecommendationsSmooth(
                     <span class="song-artist">${rec.artist}</span>
                   </div>
                 </div>
-                <div class="song-actions">
-                    <div class="song-status">
-                      ${getStatusIndicator(rec.like_dislike)}
-                    </div>
-                  </div>
+                
               </div>
             `
             )
@@ -325,17 +321,6 @@ function renderSentRecommendationsSmooth(
   setupSentRecommendationActions();
 }
 
-// Helper function to show messages (implement based on your UI)
-function showMessage(message, type) {
-  console.log(`${type.toUpperCase()}: ${message}`);
-  // You can implement your notification system here
-}
-
-// Function to clear cache manually if needed
-function clearSentRecommendationsCache() {
-  sentRecommendationsCache.clear();
-  console.log("Sent recommendations cache cleared");
-}
 
 // Auto-retry mechanism when connection is restored
 if (window.internetMonitor) {

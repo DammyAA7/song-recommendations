@@ -46,7 +46,7 @@ class ReceivedRecsManager {
       "INSERT",
       `friend_id=eq.${currentUserId}`,
       async (payload) => {
-        const rec = await this.fetchRecommnedation(payload.new.id);
+        const rec = await this.fetchRecommendation(payload.new.id);
         console.log("Payload received:", payload);
         if (rec) {
           this.handleNewRec(rec);
@@ -116,7 +116,7 @@ class ReceivedRecsManager {
     });*/
   }
 
-  async fetchRecommnedation(recId) {
+  async fetchRecommendation(recId) {
     const { data, error } = await this.supabaseClient
       .from("enriched_recommendations")
       .select("*")
@@ -473,10 +473,8 @@ class ReceivedRecsManager {
 
   async fetchReceivedRecs() {
     try {
-      // Add timestamp to prevent caching issues
-      const timestamp = Date.now();
       const response = await internetMonitor.fetchWithConnectivityCheck(
-        `https://recspot-e6585868d70b.herokuapp.com/recommendations?`,
+        `https://recspot-e6585868d70b.herokuapp.com/recommendations`,
         {
           method: "GET",
           credentials: "include",
@@ -936,6 +934,28 @@ class ReceivedRecsManager {
       }
     }
     return false;
+  }
+
+  clearCache() {
+    // Clear all cached data
+    this.cachedRecommendations = {};
+    this.lastRecHash = null;
+    this.lastFetchTime = null;
+    this.expandedStates = new Set();
+
+    // Clear persistent expanded states
+    if (window.recRecsExpandedStates) {
+      window.recRecsExpandedStates = {};
+    }
+
+    // Clear container reference
+    this.receivedContainer = null;
+
+    // Reset flags
+    this.isModalOpen = false;
+    this.initialized = false;
+
+    console.log("ReceivedRecsManager cache cleared");
   }
 }
 
