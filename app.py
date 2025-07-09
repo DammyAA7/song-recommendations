@@ -930,9 +930,6 @@ def recommend_song():
                     OR (user_id = %s AND friend_id = %s)
             )
         """, (user_id, friend_id, friend_id, user_id))
-
-        print("Checking friendship between user_id and friend_id")
-        print(f"User ID: {user_id}, Friend ID: {friend_id}")
         
         if not cursor.fetchone()[0]:
             return jsonify({'error': 'Not_Friends_with_user'}), 400

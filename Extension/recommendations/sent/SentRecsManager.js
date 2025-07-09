@@ -28,13 +28,11 @@ class SentRecsManager {
       this.setupRealtimeListener();
 
       this.initialized = true;
-     
     } catch (error) {
       console.error("Failed to initialize ReceivedRecsManager:", error);
       throw error;
     }
   }
-
 
   setupRealtimeListener() {
     const currentUserId = window.UserIDUtils.getCurrentUserId();
@@ -70,7 +68,7 @@ class SentRecsManager {
       recommendation_id: data.recommendation_id,
       recommended_by: data.friend_id,
       display_name: data.friend_name,
-      avatar_url: data.friend_avatar,
+      friend_avatar: data.friend_avatar,
       song_id: data.song_id,
       title: data.song_title,
       artist: data.artist,
@@ -143,6 +141,11 @@ class SentRecsManager {
     // Setup event listeners for the new song item
     const newSongItem = songsList.firstElementChild;
     this.setupSongItemListeners(newSongItem);
+
+    const container = this.getContainer();
+    if (container && existingPerson !== container.firstElementChild) {
+      container.insertBefore(existingPerson, container.firstElementChild);
+    }
   }
 
   addNewUserContainer(container, newRec) {

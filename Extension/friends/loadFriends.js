@@ -78,7 +78,7 @@ class FriendsManager {
         }
         
         return {
-            friend_id: data.friend_id,
+            spotify_user_id: data.friend_id,
             display_name: data.display_name,
             avatar_url: data.avatar_url
         };
