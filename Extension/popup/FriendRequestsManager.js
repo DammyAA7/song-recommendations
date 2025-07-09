@@ -7,24 +7,23 @@ class FriendRequestsManager {
     this.initialized = false;
     this.lastFetchTime = null;
     this.lastRequestsHash = null;
-
   }
 
   async initialize() {
     try {
       // Wait for supabaseClient to be available
       await this.waitForSupabaseClient();
-      
+
       // Load initial data from API
       await this.loadInitialRequests();
-      
+
       // Setup real-time listener
       this.setupRealtimeListener();
-      
+
       this.initialized = true;
-      console.log('FriendRequestsManager initialized with cached data');
+      console.log("FriendRequestsManager initialized with cached data");
     } catch (error) {
-      console.error('Failed to initialize FriendRequestsManager:', error);
+      console.error("Failed to initialize FriendRequestsManager:", error);
       throw error;
     }
   }
@@ -33,24 +32,24 @@ class FriendRequestsManager {
     // Wait for the supabaseClient to be available
     let attempts = 0;
     const maxAttempts = 50; // Wait up to 5 seconds
-    
+
     while (!window.secureSupabaseClient && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
       attempts++;
     }
-    
+
     if (!window.secureSupabaseClient) {
-      throw new Error('SecureSupabaseClient not available after waiting');
+      throw new Error("SecureSupabaseClient not available after waiting");
     }
-    
+
     this.supabaseClient = window.secureSupabaseClient;
   }
 
   async loadInitialRequests() {
     try {
-      console.log('Loading initial friend requests from API...');
+      console.log("Loading initial friend requests from API...");
       const requests = await this.fetchFriendRequests();
-      
+
       if (requests) {
         this.cachedRequests = requests;
         this.lastRequestsHash = this.generateRequestsHash(requests);
@@ -58,74 +57,62 @@ class FriendRequestsManager {
         console.log(`Cached ${requests.length} friend requests`);
       }
     } catch (error) {
-      console.error('Error loading initial requests:', error);
+      console.error("Error loading initial requests:", error);
     }
   }
 
   setupRealtimeListener() {
-        // Subscribe to real-time changes
-        const currentUserId = window.UserIDUtils.getCurrentUserId();
-        this.supabaseClient.subscribe('requests', 'INSERT', `receiver_id=eq.${currentUserId}`, async (payload) => {
-            const request = await this.fetchRequest(payload.new.id);
-            console.log('Payload received:', payload);
-            if (request) {
-              this.handleNewRequest(request);
-            }
-        });
-
-        this.supabaseClient.subscribe('requests', 'DELETE', null, (payload) => {
-            console.log('Request removed:', payload);
-            this.handleRequestRemoved(payload.old);
-        });
-    }
+    // Subscribe to real-time changes
+    const currentUserId = window.UserIDUtils.getCurrentUserId();
+    this.supabaseClient.subscribe(
+      "requests",
+      "INSERT",
+      `receiver_id=eq.${currentUserId}`,
+      async (payload) => {
+        const request = await this.fetchRequest(payload.new.id);
+        console.log("Payload received:", payload);
+        if (request) {
+          this.handleNewRequest(request);
+        }
+      }
+    );
+  }
 
   async fetchRequest(requestId) {
-        const { data, error } = await this.supabaseClient.from('enriched_requests')
-            .select('*')
-            .eq('id', requestId)
-            .single();
-        
-        if (error) {
-            console.error('Error fetching enriched request:', error);
-            return null;
-        }
-        
-        return {
-            id: data.id,
-            sender_id: data.sender_id,
-            created_at: data.created_at,
-            display_name: data.display_name,
-            avatar_url: data.avatar_url,
-            mutual_friends: data.mutual_friends_count
-        };
+    const { data, error } = await this.supabaseClient
+      .from("enriched_requests")
+      .select("*")
+      .eq("id", requestId)
+      .single();
+
+    if (error) {
+      console.error("Error fetching enriched request:", error);
+      return null;
     }
+
+    return {
+      id: data.id,
+      sender_id: data.sender_id,
+      created_at: data.created_at,
+      display_name: data.display_name,
+      avatar_url: data.avatar_url,
+      mutual_friends: data.mutual_friends_count,
+    };
+  }
 
   handleNewRequest(newRequest) {
     this.cachedRequests.unshift(newRequest); // Add to beginning
-    
+
     // Update UI
     this.updateCacheAndUI();
-    
+
     // Show notification
-    showMessage(`New friend request from ${newRequest.display_name}`, "success");
-  }
-
-  handleRequestRemoved(removedRequest) {
-    // Remove from cache
-    const initialLength = this.cachedRequests.length;
-    console.log('id:', removedRequest.id);
-    console.log('Cached requests before removal:', this.cachedRequests);
-    this.cachedRequests = this.cachedRequests.filter(
-      req => req.id !== removedRequest.id
+    showMessage(
+      `New friend request from ${newRequest.display_name}`,
+      "success"
     );
-    
-    if (this.cachedRequests.length < initialLength) {
-      showMessage(`A Friend request has been removed`, "info");
-      this.updateCacheAndUI();
-    }
   }
 
-  
   getRequestsList() {
     if (!this.requestsList) {
       this.requestsList = document.querySelector("#modal-friend-requests-list");
@@ -140,7 +127,6 @@ class FriendRequestsManager {
       .sort();
     return simplified.join("|");
   }
-
 
   async fetchFriendRequests() {
     try {
@@ -175,7 +161,7 @@ class FriendRequestsManager {
     try {
       // If not initialized, wait for initialization
       if (!this.initialized) {
-        console.log('Manager not initialized yet, waiting...');
+        console.log("Manager not initialized yet, waiting...");
         await this.initialize();
       }
 
@@ -183,7 +169,6 @@ class FriendRequestsManager {
       console.log("Using cached friend requests");
       this.renderRequests();
       this.updateRequestsBadge();
-      
     } catch (error) {
       console.error("Error loading friend requests:", error);
       this.renderError();
@@ -253,17 +238,25 @@ class FriendRequestsManager {
     return `
       <div class="friend-request-item" data-request-id="${request.sender_id}">
         <div class="request-user-info">
-          <img src="${request.avatar_url || this.noAvatar}" alt="${request.display_name}" class="request-avatar">
+          <img src="${request.avatar_url || this.noAvatar}" alt="${
+      request.display_name
+    }" class="request-avatar">
           <div class="request-details">
             <h4 class="request-name">${request.display_name}</h4>
-            <p class="request-meta">${request.mutual_friends} mutual friends • ${timeAgo}</p>
+            <p class="request-meta">${
+              request.mutual_friends
+            } mutual friends • ${timeAgo}</p>
           </div>
         </div>
         <div class="request-actions">
-          <button class="accept-btn spotify-btn-primary" data-action="accept" data-sender-id="${request.sender_id}">
+          <button class="accept-btn spotify-btn-primary" data-action="accept" data-sender-id="${
+            request.sender_id
+          }">
             Accept
           </button>
-          <button class="decline-btn spotify-btn-secondary" data-action="decline" data-sender-id="${request.sender_id}">
+          <button class="decline-btn spotify-btn-secondary" data-action="decline" data-sender-id="${
+            request.sender_id
+          }">
             Decline
           </button>
         </div>
@@ -273,8 +266,11 @@ class FriendRequestsManager {
 
   formatTimeAgo(dateString) {
     console.log("Formatting time ago for:", dateString);
-    const date = new Date(dateString);
-    console.log("Parsed date:", date);
+    const date = new Date(
+      dateString.endsWith("Z") ? dateString : dateString + "Z"
+    );
+
+    console.log("Parsed date (UTC):", date);
     const now = new Date();
     const diffInSeconds = Math.floor((now - date) / 1000);
 
@@ -362,7 +358,7 @@ class FriendRequestsManager {
 
   updateRequestsBadge() {
     console.log("Updating friend requests badge");
-    
+
     const badge = document.querySelector(".friend-requests-badge");
     if (!badge) {
       console.log("No friend requests badge found");
@@ -373,13 +369,12 @@ class FriendRequestsManager {
       // Always use cached data - no API calls needed
       const requestCount = this.cachedRequests.length;
       console.log(`Using cached count: ${requestCount}`);
-      
+
       // Update badge display
       badge.textContent = requestCount;
       badge.style.display = requestCount > 0 ? "block" : "none";
-      
+
       console.log(`Badge updated: ${requestCount} requests`);
-      
     } catch (error) {
       console.error("Error updating requests badge:", error);
       badge.style.display = "none";
@@ -451,18 +446,18 @@ class FriendRequestsManager {
   }
 
   updateCacheAndUI() {
-  // Update hash for change detection
-  this.lastRequestsHash = this.generateRequestsHash(this.cachedRequests);
-  
-  // Update UI if modal is open
-  if (this.isModalOpen) {
-    this.renderRequests();
-  }
-  
-  // Update badge
-  this.updateRequestsBadge();
-  
-  console.log(`Cache updated: ${this.cachedRequests.length} requests`);
+    // Update hash for change detection
+    this.lastRequestsHash = this.generateRequestsHash(this.cachedRequests);
+
+    // Update UI if modal is open
+    if (this.isModalOpen) {
+      this.renderRequests();
+    }
+
+    // Update badge
+    this.updateRequestsBadge();
+
+    console.log(`Cache updated: ${this.cachedRequests.length} requests`);
   }
 }
 

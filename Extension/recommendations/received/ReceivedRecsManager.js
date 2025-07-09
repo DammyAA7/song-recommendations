@@ -48,8 +48,64 @@ class ReceivedRecsManager {
       async (payload) => {
         const rec = await this.fetchRecommnedation(payload.new.id);
         console.log("Payload received:", payload);
-        if (request) {
+        if (rec) {
           this.handleNewRec(rec);
+        }
+      }
+    );
+
+    this.supabaseClient.subscribe(
+      "recommendation_comments",
+      "INSERT",
+      null,
+      async (payload) => {
+        const recId = payload.new.recommendation_id;
+        const commentText = payload.new.comment;
+        const replyText = payload.new.reply;
+        // Check if recommendation already exists in cache
+        const existsInCache = this.isRecommendationInCache(recId);
+        if (existsInCache) {
+          console.log("Recommendation exists in cache");
+          // Update cache with comment if changed
+          if (commentText) {
+            this.updateCommentInCache(recId, commentText);
+            this.addOrUpdateCommentInUI(recId, commentText);
+          }
+
+          // Update cache with reply if changed
+          if (replyText) {
+            this.updateReplyInCache(recId, replyText);
+            this.removeReplyButton(recId);
+          }
+        }
+      }
+    );
+
+    this.supabaseClient.subscribe(
+      "recommendation_comments",
+      "UPDATE",
+      null,
+      async (payload) => {
+        const recId = payload.new.recommendation_id;
+        const commentText = payload.new.comment;
+        const replyText = payload.new.reply;
+        console.log("Comment payload received:", payload);
+        // Check if recommendation already exists in cache
+        const existsInCache = this.isRecommendationInCache(recId);
+        if (existsInCache) {
+          console.log("Recommendation exists in cache");
+
+          // Update cache with comment if changed
+          if (commentText) {
+            this.updateCommentInCache(recId, commentText);
+            this.addOrUpdateCommentInUI(recId, commentText);
+          }
+
+          // Update cache with reply if changed
+          if (replyText) {
+            this.updateReplyInCache(recId, replyText);
+            this.removeReplyButton(recId);
+          }
         }
       }
     );
@@ -64,7 +120,7 @@ class ReceivedRecsManager {
     const { data, error } = await this.supabaseClient
       .from("enriched_recommendations")
       .select("*")
-      .eq("id", recId)
+      .eq("recommendation_id", recId)
       .single();
 
     if (error) {
@@ -72,11 +128,13 @@ class ReceivedRecsManager {
       return null;
     }
 
+    console.log("Fetched recommendation data:", data);
+
     return {
       recommendation_id: data.recommendation_id,
-      recommended_by: data.friend_id,
-      display_name: data.friend_name,
-      avatar_url: data.friend_avatar,
+      recommended_by: data.recommended_by_id,
+      display_name: data.recommended_by_name,
+      avatar_url: data.recommended_by_avatar,
       song_id: data.song_id,
       title: data.song_title,
       artist: data.artist,
@@ -92,17 +150,14 @@ class ReceivedRecsManager {
     this.updateUIandCache(newRec);
 
     // Show notification
-    showMessage(
-      `New friend recommendation from ${newRec.display_name}`,
-      "success"
-    );
+    showMessage(`New recommendation from ${newRec.display_name}`, "success");
   }
 
   updateUIandCache(newRec) {
     // Update the cache first
     if (this.cachedRecommendations[newRec.display_name]) {
       // Add to existing user's recommendations
-      this.cachedRecommendations[newRec.display_name].push(newRec);
+      this.cachedRecommendations[newRec.display_name].unshift(newRec);
     } else {
       // Create new entry for this user
       this.cachedRecommendations[newRec.display_name] = [newRec];
@@ -155,10 +210,10 @@ class ReceivedRecsManager {
 
     // Find the songs list and add the new song
     const songsList = personContainer.querySelector(".songs-list");
-    songsList.insertAdjacentHTML("beforeend", songHtml);
+    songsList.insertAdjacentHTML("afterbegin", songHtml);
 
     // Setup event listeners for the new song item
-    const newSongItem = songsList.lastElementChild;
+    const newSongItem = songsList.firstElementChild;
     this.setupSongItemListeners(newSongItem);
   }
 
@@ -187,10 +242,10 @@ class ReceivedRecsManager {
   `;
 
     // Add the new person container
-    container.insertAdjacentHTML("beforeend", personHtml);
+    container.insertAdjacentHTML("afterbegin", personHtml);
 
     // Setup event listeners for the new person container
-    const newPersonContainer = container.lastElementChild;
+    const newPersonContainer = container.firstElementChild;
     this.setupPersonContainerListeners(newPersonContainer);
   }
 
@@ -685,6 +740,43 @@ class ReceivedRecsManager {
     `;
   }
 
+  updateReplyInCache(recommendationId, replyText) {
+    // Find and update the recommendation in cache
+    for (const [userId, userRecs] of Object.entries(
+      this.cachedRecommendations
+    )) {
+      const recIndex = userRecs.findIndex(
+        (rec) =>
+          rec.recommendation_id.toString() === recommendationId.toString()
+      );
+      if (recIndex !== -1) {
+        // Update the recommendation with reply
+        userRecs[recIndex].reply = replyText;
+
+        // Update hash for change detection
+        this.lastRecHash = this.generateRecHash(this.cachedRecommendations);
+
+        console.log(
+          `Updated reply for recommendation ${recommendationId} in cache`
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  removeReplyButton(recommendationId) {
+    const songItem = this.receivedContainer?.querySelector(
+      `[data-rec-id="${recommendationId}"]`
+    );
+    if (songItem) {
+      const commentActions = songItem.querySelector(".comment-actions");
+      if (commentActions) {
+        commentActions.remove();
+      }
+    }
+  }
+
   setupReplyActions() {
     this.receivedContainer = this.getContainer();
     if (!this.receivedContainer) return;
@@ -699,6 +791,11 @@ class ReceivedRecsManager {
           recommendationId: recId,
           onSuccess: (replyText) => {
             console.log("Reply sent:", replyText);
+            // Update cache immediately
+            this.updateReplyInCache(recId, replyText);
+
+            // Remove reply button from UI
+            this.removeReplyButton(recId);
           },
         });
       });
@@ -764,6 +861,81 @@ class ReceivedRecsManager {
         break;
       }
     }
+  }
+
+  updateCommentInCache(recommendationId, commentText) {
+    // Find and update the recommendation in cache
+    for (const [userId, userRecs] of Object.entries(
+      this.cachedRecommendations
+    )) {
+      const recIndex = userRecs.findIndex(
+        (rec) =>
+          rec.recommendation_id.toString() === recommendationId.toString()
+      );
+      if (recIndex !== -1) {
+        // Update the recommendation with comment
+        userRecs[recIndex].comment = commentText;
+
+        // Update hash for change detection
+        this.lastRecHash = this.generateRecHash(this.cachedRecommendations);
+
+        console.log(
+          `Updated comment for recommendation ${recommendationId} in cache`
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  addOrUpdateCommentInUI(recommendationId, commentText) {
+    const songItem = this.receivedContainer?.querySelector(
+      `[data-rec-id="${recommendationId}"]`
+    );
+    if (!songItem) return;
+
+    const songDetails = songItem.querySelector(".song-details");
+    const songInfoActionsRow = songDetails.querySelector(
+      ".song-info-actions-row"
+    );
+
+    // Check if comment section already exists
+    let commentSection = songDetails.querySelector(".song-comment-section");
+
+    if (commentSection) {
+      // Update existing comment
+      const commentTextElement = commentSection.querySelector(".comment-text");
+      if (commentTextElement) {
+        commentTextElement.textContent = commentText;
+      }
+    } else {
+      // Create new comment section
+      const commentHtml = `
+      <div class="song-comment-section">
+        <div class="comment-bubble">
+          <span class="comment-text">${commentText}</span>
+        </div>
+      </div>
+    `;
+
+      // Insert after the song-info-actions-row
+      songInfoActionsRow.insertAdjacentHTML("afterend", commentHtml);
+    }
+  }
+
+  isRecommendationInCache(recommendationId) {
+    for (const [userId, userRecs] of Object.entries(
+      this.cachedRecommendations
+    )) {
+      const exists = userRecs.some(
+        (rec) =>
+          rec.recommendation_id.toString() === recommendationId.toString()
+      );
+      if (exists) {
+        return true;
+      }
+    }
+    return false;
   }
 }
 
