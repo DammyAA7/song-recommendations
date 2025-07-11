@@ -246,8 +246,9 @@
 
 .song-comment-section {
   padding: 2px 10px 0px 10px;
-  width: 100%;
-  margin-bottom: 8px;
+  width: calc(100% - 50px);
+  margin-bottom: 4px;
+  margin-left: 50px; 
 }
 
 .comment-bubble {
@@ -267,6 +268,13 @@
 }
 
 .comment-actions {
+  padding: 0px 10px 0px 10px;;
+  display: flex;
+  justify-content: flex-start;
+  margin-left: 50px;
+}
+
+.sent-comment-actions {
   padding: 0px 10px 0px 10px;;
   display: flex;
   justify-content: flex-start;

@@ -42,12 +42,103 @@ class SentRecsManager {
       `user_id=eq.${currentUserId}`,
       async (payload) => {
         const rec = await this.fetchRecommendation(payload.new.id);
-        console.log("Payload received:", payload);
         if (rec) {
-          this.updateUIandCache(rec);
+          this.updateCache(rec);
         }
       }
     );
+
+    this.supabaseClient.subscribe(
+      "recommendation_songs",
+      "UPDATE",
+      null,
+      async (payload) => {
+        const existsInCache = this.isRecommendationInCache(
+          payload.new.recommendation_id
+        );
+        if (existsInCache) {
+          const newRecId = payload.new.recommendation_id;
+          const newRecLikeDislike = payload.new.like_dislike;
+          this.updateLikeStatus(newRecId, newRecLikeDislike);
+          this.updateLikeStatusInUI(newRecId, newRecLikeDislike);
+        } else {
+          console.warn(
+            `Received new song for recommendation ${payload.new.recommendation_id} not in cache`
+          );
+        }
+      }
+    );
+  }
+
+  updateLikeStatus(recommendationId, likeDislike) {
+    // Find and update the recommendation in cache
+    for (const [userId, userRecs] of Object.entries(
+      this.cachedRecommendations
+    )) {
+      const recIndex = userRecs.findIndex(
+        (rec) =>
+          rec.recommendation_id.toString() === recommendationId.toString()
+      );
+      if (recIndex !== -1) {
+        // Update the recommendation with comment
+        userRecs[recIndex].like_dislike = likeDislike;
+
+        // Update hash for change detection
+        this.lastRecHash = this.generateRecHash(this.cachedRecommendations);
+
+        console.log(
+          `Updated like status for recommendation ${recommendationId} in cache`
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  updateLikeStatusInUI(recommendationId, likeDislike) {
+    // Find the song item in the DOM using the recommendation ID
+    const songItem = document.querySelector(
+      `[data-recommendation-id="${recommendationId}"]`
+    );
+
+    if (!songItem) {
+      console.warn(
+        `Song item with recommendation ID ${recommendationId} not found in DOM`
+      );
+      return;
+    }
+
+    // Find the song-status element within this song item
+    const statusElement = songItem.querySelector(".song-status");
+
+    if (!statusElement) {
+      console.warn(
+        `Status element not found for recommendation ID ${recommendationId}`
+      );
+      return;
+    }
+
+    // Update the status indicator HTML using the getStatusIndicator function
+    statusElement.innerHTML = getStatusIndicator(likeDislike);
+
+    console.log(
+      `Updated UI status for recommendation ${recommendationId} to ${likeDislike}`
+    );
+  }
+
+  isRecommendationInCache(recommendationId) {
+    for (const [userId, userRecs] of Object.entries(
+      this.cachedRecommendations
+    )) {
+      const exists = userRecs.some(
+        (rec) =>
+          rec.recommendation_id.toString() === recommendationId.toString()
+      );
+      if (exists) {
+        return true;
+      }
+    }
+    return false;
   }
 
   async fetchRecommendation(recId) {
@@ -79,106 +170,32 @@ class SentRecsManager {
     };
   }
 
-  updateUIandCache(newRec) {
-    // Update the cache first
+  updateCache(newRec) {
+    // Store the updated user's data
+    let userRecs;
+
     if (this.cachedRecommendations[newRec.display_name]) {
       // Add to existing user's recommendations
       this.cachedRecommendations[newRec.display_name].unshift(newRec);
+      userRecs = this.cachedRecommendations[newRec.display_name];
     } else {
       // Create new entry for this user
-      this.cachedRecommendations[newRec.display_name] = [newRec];
+      userRecs = [newRec];
     }
+
+    // Remove the user from current position and add them to the top
+    delete this.cachedRecommendations[newRec.display_name];
+
+    // Recreate the cache with the updated user first
+    this.cachedRecommendations = {
+      [newRec.display_name]: userRecs,
+      ...this.cachedRecommendations,
+    };
 
     // Update the hash for change detection
     this.lastRecHash = this.generateRecHash(this.cachedRecommendations);
-
-    // Update UI efficiently
-    const container = this.getContainer();
-    if (!container) {
-      console.error("Container not found for UI update");
-      return;
-    }
-
-    // Check if this is the first recommendation (no recommendations message is shown)
-    const noRecsMessage = container.querySelector(
-      ".no-recommendations-message"
-    );
-    if (noRecsMessage) {
-      // If no recommendations were shown, do a full render
-      this.renderRecommendations();
-      return;
-    }
-
-    // Find existing person container
-    const existingPerson = container.querySelector(
-      `[data-person="${newRec.display_name}"]`
-    );
-
-    if (existingPerson) {
-      // User already exists, just add the new song
-      this.addSongToExistingUser(existingPerson, newRec);
-    } else {
-      // New user, create entire person container
-      this.addNewUserContainer(container, newRec);
-    }
   }
 
-  addSongToExistingUser(personContainer, newRec) {
-    // Update the song count
-    const songCount = personContainer.querySelector(".friend-song-count");
-    const currentCount = this.cachedRecommendations[newRec.display_name].length;
-    songCount.textContent = `${currentCount} song${
-      currentCount > 1 ? "s" : ""
-    } sent`;
-
-    // Create new song HTML
-    const songHtml = this.createSongItemHtml(newRec);
-
-    // Find the songs list and add the new song
-    const songsList = personContainer.querySelector(".songs-list");
-    songsList.insertAdjacentHTML("afterbegin", songHtml);
-
-    // Setup event listeners for the new song item
-    const newSongItem = songsList.firstElementChild;
-    this.setupSongItemListeners(newSongItem);
-
-    const container = this.getContainer();
-    if (container && existingPerson !== container.firstElementChild) {
-      container.insertBefore(existingPerson, container.firstElementChild);
-    }
-  }
-
-  addNewUserContainer(container, newRec) {
-    const userAvatar = newRec.friend_avatar || this.noAvatar;
-    const isExpanded = this.expandedStates.has(newRec.display_name);
-
-    const personHtml = `
-    <div class="recommendation-person" data-person="${newRec.display_name}">
-      <div class="person-header">
-        <div class="friend-avatar">
-          <img src="${userAvatar}" alt="${newRec.display_name}">
-        </div>
-        <div class="friend-info">
-          <span class="friend-name">${newRec.display_name}</span>
-          <span class="friend-song-count">1 song received</span>
-        </div>
-        <button class="expand-btn" data-person="${newRec.display_name}">${
-      isExpanded ? "▲" : "▼"
-    }</button>
-      </div>
-      <div class="songs-list ${isExpanded ? "" : "hidden"}">
-        ${this.createSongItemHtml(newRec)}
-      </div>
-    </div>
-  `;
-
-    // Add the new person container
-    container.insertAdjacentHTML("afterbegin", personHtml);
-
-    // Setup event listeners for the new person container
-    const newPersonContainer = container.firstElementChild;
-    this.setupPersonContainerListeners(newPersonContainer);
-  }
 
   setupPersonContainerListeners(personContainer) {
     // Setup expand/collapse button
@@ -261,6 +278,14 @@ class SentRecsManager {
                       ${getStatusIndicator(rec.like_dislike)}
                     </div>
                   </div>
+                <div class="sent-comment-actions">
+                      <button class="reply-btn" data-friend-name="${friendName}" data-rec-id="${rec.recommendation_id}" title="Reply to ${friendName}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                        </svg>
+                        Reply
+                      </button>
+                    </div>
               </div>
             `
             )
