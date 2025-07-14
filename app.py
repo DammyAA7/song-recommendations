@@ -1070,7 +1070,7 @@ def get_sent_recommendations():
               rs.like_dislike,
               r.friend_id           AS recommended_to,
               u.spotify_display_name AS friend_name,
-              u.spotify_avatar_url   AS friend_avatar
+              u.spotify_avatar_url   AS friend_avatar,
               rc.rec_sender,
               rc.rec_receiver
             FROM recommendations      r
