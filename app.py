@@ -1037,8 +1037,8 @@ def get_user_recommendations():
                 'friend_name'      : row['friend_name'],
                 'friend_avatar'    : row['friend_avatar'],
                 'like_dislike'     : row['like_dislike'],  # 1 = like, 0 = dislike, None = pending
-                'comment'          : row['comment'],       # Comment from the recommender
-                'reply'            : row['reply'] 
+                'rec_sender'       : row['rec_sender'],       # Comment from the recommender
+                'rec_reciever'     : row['rec_reciever'] 
             })
         return jsonify(output)
         
@@ -1383,8 +1383,8 @@ def send_rec_comment():
     if not rec_id:
         return jsonify({'error': 'recommendation_id_required'}), 400
     
-    comment = request.json.get('comment')
-    if not comment:
+    rec_sender = request.json.get('rec_sender')
+    if not rec_sender:
         return jsonify({'error': 'comment_required'}), 400
     
     conn = get_db_connection()
@@ -1393,12 +1393,12 @@ def send_rec_comment():
     try:
         # Insert the comment into the database
         cursor.execute("""
-            INSERT INTO recommendation_comments (recommendation_id, comment)
+            INSERT INTO recommendation_comments (recommendation_id, rec_sender)
             VALUES (%s, %s)
             ON CONFLICT (recommendation_id)
             DO UPDATE SET 
-                comment = EXCLUDED.comment
-        """, (rec_id, comment))
+                rec_sender = EXCLUDED.rec_sender
+        """, (rec_id, rec_sender))
         
         conn.commit()
         
@@ -1414,7 +1414,7 @@ def send_rec_comment():
         conn.close()
 
 
-@app.route('/send_reply', methods=['POST'])
+@app.route('/send_rec_receiver_comment', methods=['POST'])
 @ensure_token  # Ensure the access token is valid before proceeding
 def send_rec_reply():
     access_token = session.get('access_token')
@@ -1429,8 +1429,8 @@ def send_rec_reply():
     if not rec_id:
         return jsonify({'error': 'recommendation_id_required'}), 400
     
-    reply = request.json.get('reply')
-    if not reply:
+    rec_receiver = request.json.get('rec_receiver')
+    if not rec_receiver:
         return jsonify({'error': 'reply_required'}), 400
     
     conn = get_db_connection()
@@ -1439,12 +1439,12 @@ def send_rec_reply():
     try:
         # Insert the reply into the database
         cursor.execute("""
-            INSERT INTO recommendation_comments (recommendation_id, reply)
+            INSERT INTO recommendation_comments (recommendation_id, rec_receiver)
             VALUES (%s, %s)
             ON CONFLICT (recommendation_id)
             DO UPDATE SET
-                reply = EXCLUDED.reply
-        """, (rec_id, reply))
+                rec_receiver = EXCLUDED.rec_receiver
+        """, (rec_id, rec_receiver))
         
         conn.commit()
         

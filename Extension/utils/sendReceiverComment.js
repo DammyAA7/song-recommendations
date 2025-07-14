@@ -1,13 +1,13 @@
 /**
  * Sends a reply for a recommendation to the backend API
  * @param {string} recommendationId - The recommendation ID
- * @param {string} reply - The reply text
+ * @param {string} rec_receiver - The reply text
  * @returns {Promise<object>} - JSON response from the backend
  */
-async function sendReply(recommendationId, reply) {
+async function sendReceiverComment(recommendationId, rec_receiver) {
   try {
     const response = await fetch(
-      "https://recspot-e6585868d70b.herokuapp.com/send_reply",
+      "https://recspot-e6585868d70b.herokuapp.com//send_rec_receiver_comment",
       {
         method: "POST",
         headers: {
@@ -16,7 +16,7 @@ async function sendReply(recommendationId, reply) {
         credentials: "include",
         body: JSON.stringify({
           recommendation_id: recommendationId,
-          reply: reply,
+          rec_receiver: rec_receiver,
         }),
       }
     );
@@ -33,4 +33,4 @@ async function sendReply(recommendationId, reply) {
   }
 }
 
-window.sendReply = sendReply;
+window.sendReceiverComment = sendReceiverComment;

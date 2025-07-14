@@ -9,8 +9,15 @@ class FriendsManager {
     this.lastFriendsHash = null;
 
     // No avatar fallback
-    this.noAvatar =
-      "https://media.istockphoto.com/id/945691510/vector/people-icon-silhouettes-illustration-vector.jpg?s=612x612&w=0&k=20&c=chZcclmonc5T002ErDfMZ6KYz01tfHnd-Hzk4EfMJ6k=";
+    this.noAvatar = this.createDefaultAvatar();
+  }
+
+  createDefaultAvatar(size = 18, color = "#666666") {
+    const svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" fill="${color}" viewBox="0 0 16 16">
+      <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6"/>
+    </svg>`;
+    
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
   }
 
   async initialize() {

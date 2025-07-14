@@ -102,7 +102,7 @@ function showReplyPopup(friendName, recId) {
   sendBtn.addEventListener("click", () => {
     const replyText = textarea.value.trim();
     if (replyText) {
-      sendReply(friendName, recId, replyText);
+      sendReceiverComment(friendName, recId, replyText);
       closePopup();
     }
   });
@@ -110,7 +110,7 @@ function showReplyPopup(friendName, recId) {
   // Handle Enter key (Ctrl+Enter to send)
   textarea.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.ctrlKey && !sendBtn.disabled) {
-      sendReply(friendName, recId, textarea.value.trim());
+      sendReceiverComment(friendName, recId, textarea.value.trim());
       closePopup();
     }
   });

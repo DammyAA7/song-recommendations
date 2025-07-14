@@ -7,10 +7,18 @@ class ReceivedRecsManager {
     this.initialized = false;
     this.lastFetchTime = null;
     this.lastRecHash = null;
-    this.expandedStates = new Set(); // New: Track expanded states
+    this.expandedStates = new Set();
 
-    this.noAvatar =
-      "https://media.istockphoto.com/id/945691510/vector/people-icon-silhouettes-illustration-vector.jpg?s=612x612&w=0&k=20&c=chZcclmonc5T002ErDfMZ6KYz01tfHnd-Hzk4EfMJ6k=";
+    
+    this.noAvatar = this.createDefaultAvatar();
+  }
+
+  createDefaultAvatar(size = 18, color = "#666666") {
+    const svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" fill="${color}" viewBox="0 0 16 16">
+      <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6"/>
+    </svg>`;
+    
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
   }
 
   async initialize() {
@@ -60,21 +68,21 @@ class ReceivedRecsManager {
       null,
       async (payload) => {
         const recId = payload.new.recommendation_id;
-        const commentText = payload.new.comment;
-        const replyText = payload.new.reply;
+        const SenderText = payload.new.rec_sender;
+        const ReceiverText = payload.new.rec_receiver;
         // Check if recommendation already exists in cache
         const existsInCache = this.isRecommendationInCache(recId);
         if (existsInCache) {
           console.log("Recommendation exists in cache");
           // Update cache with comment if changed
-          if (commentText) {
-            this.updateCommentInCache(recId, commentText);
-            this.addOrUpdateCommentInUI(recId, commentText);
+          if (SenderText) {
+            this.updateSenderTextInCache(recId, SenderText);
+            this.addOrUpdateSenderTextInUI(recId, SenderText);
           }
 
           // Update cache with reply if changed
-          if (replyText) {
-            this.updateReplyInCache(recId, replyText);
+          if (ReceiverText) {
+            this.updateReceiverTextInCache(recId, ReceiverText);
             this.removeReplyButton(recId);
           }
         }
@@ -87,8 +95,8 @@ class ReceivedRecsManager {
       null,
       async (payload) => {
         const recId = payload.new.recommendation_id;
-        const commentText = payload.new.comment;
-        const replyText = payload.new.reply;
+        const SenderText = payload.new.rec_sender;
+        const ReceiverText = payload.new.rec_receiver;
         console.log("Comment payload received:", payload);
         // Check if recommendation already exists in cache
         const existsInCache = this.isRecommendationInCache(recId);
@@ -97,13 +105,13 @@ class ReceivedRecsManager {
 
           // Update cache with comment if changed
           if (commentText) {
-            this.updateCommentInCache(recId, commentText);
-            this.addOrUpdateCommentInUI(recId, commentText);
+            this.updateSenderTextInCache(recId, commentText);
+            this.addOrUpdateSenderTextInUI(recId, commentText);
           }
 
           // Update cache with reply if changed
           if (replyText) {
-            this.updateReplyInCache(recId, replyText);
+            this.updateReceiverTextInCache(recId, replyText);
             this.removeReplyButton(recId);
           }
         }
@@ -140,8 +148,8 @@ class ReceivedRecsManager {
       artist: data.artist,
       track_cover: data.track_cover,
       like_dislike: data.like_dislike,
-      comment: data.comment,
-      reply: data.reply,
+      rec_sender: data.rec_sender,
+      rec_reveiver: data.rec_reveiver,
     };
   }
 
@@ -319,9 +327,6 @@ class ReceivedRecsManager {
 
   setupSongItemListeners(songItem) {
     // Setup like/dislike/play buttons for the song item
-    const likeBtn = songItem.querySelector(".like-btn");
-    const dislikeBtn = songItem.querySelector(".dislike-btn");
-    const playBtn = songItem.querySelector(".play-btn");
     const replyBtn = songItem.querySelector(".reply-btn");
 
     // These would typically be handled by window.setupRecommendationActions()
@@ -736,7 +741,7 @@ class ReceivedRecsManager {
     `;
   }
 
-  updateReplyInCache(recommendationId, replyText) {
+  updateReceiverTextInCache(recommendationId, replyText) {
     // Find and update the recommendation in cache
     for (const [userId, userRecs] of Object.entries(
       this.cachedRecommendations
@@ -788,7 +793,7 @@ class ReceivedRecsManager {
           onSuccess: (replyText) => {
             console.log("Reply sent:", replyText);
             // Update cache immediately
-            this.updateReplyInCache(recId, replyText);
+            this.updateReceiverTextInCache(recId, replyText);
 
             // Remove reply button from UI
             this.removeReplyButton(recId);
@@ -859,7 +864,7 @@ class ReceivedRecsManager {
     }
   }
 
-  updateCommentInCache(recommendationId, commentText) {
+  updateSenderTextInCache(recommendationId, commentText) {
     // Find and update the recommendation in cache
     for (const [userId, userRecs] of Object.entries(
       this.cachedRecommendations
@@ -884,7 +889,7 @@ class ReceivedRecsManager {
     return false;
   }
 
-  addOrUpdateCommentInUI(recommendationId, commentText) {
+  addOrUpdateSenderTextInUI(recommendationId, commentText) {
     const songItem = this.receivedContainer?.querySelector(
       `[data-rec-id="${recommendationId}"]`
     );

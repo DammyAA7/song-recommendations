@@ -9,8 +9,15 @@ class SentRecsManager {
     this.lastRecHash = null;
     this.expandedStates = new Set(); // New: Track expanded states
 
-    this.noAvatar =
-      "https://media.istockphoto.com/id/945691510/vector/people-icon-silhouettes-illustration-vector.jpg?s=612x612&w=0&k=20&c=chZcclmonc5T002ErDfMZ6KYz01tfHnd-Hzk4EfMJ6k=";
+    this.noAvatar = this.createDefaultAvatar();
+   }
+
+ createDefaultAvatar(size = 18, color = "#666666") {
+    const svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" fill="${color}" viewBox="0 0 16 16">
+      <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6"/>
+    </svg>`;
+    
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svgString)}`;
   }
 
   async initialize() {
@@ -65,6 +72,62 @@ class SentRecsManager {
           console.warn(
             `Received new song for recommendation ${payload.new.recommendation_id} not in cache`
           );
+        }
+      }
+    );
+
+    this.supabaseClient.subscribe(
+      "recommendation_comments",
+      "INSERT",
+      null,
+      async (payload) => {
+        const recId = payload.new.recommendation_id;
+        const commentText = payload.new.comment;
+        const replyText = payload.new.reply;
+        // Check if recommendation already exists in cache
+        const existsInCache = this.isRecommendationInCache(recId);
+        if (existsInCache) {
+          console.log("Recommendation exists in cache");
+          // Update cache with reply if changed
+          if (replyText) {
+            this.updateCommentInCache(recId, replyText);
+            this.addOrUpdateCommentInUI(recId, replyText);
+          }
+
+          // Update cache with comment if changed
+          if (commentText) {
+            this.updateReplyInCache(recId, commentText);
+            this.removeReplyButton(recId);
+          }
+        }
+      }
+    );
+
+    this.supabaseClient.subscribe(
+      "recommendation_comments",
+      "UPDATE",
+      null,
+      async (payload) => {
+        const recId = payload.new.recommendation_id;
+        const commentText = payload.new.comment;
+        const replyText = payload.new.reply;
+        console.log("Comment payload received:", payload);
+        // Check if recommendation already exists in cache
+        const existsInCache = this.isRecommendationInCache(recId);
+        if (existsInCache) {
+          console.log("Recommendation exists in cache");
+
+          // Update cache with reply if changed
+          if (replyText) {
+            this.updateCommentInCache(recId, replyText);
+            this.addOrUpdateCommentInUI(recId, replyText);
+          }
+
+          // Update cache with comment if changed
+          if (commentText) {
+            this.updateReplyInCache(recId, commentText);
+            this.removeReplyButton(recId);
+          }
         }
       }
     );
@@ -196,7 +259,6 @@ class SentRecsManager {
     this.lastRecHash = this.generateRecHash(this.cachedRecommendations);
   }
 
-
   setupPersonContainerListeners(personContainer) {
     // Setup expand/collapse button
     const expandBtn = personContainer.querySelector(".expand-btn");
@@ -255,48 +317,118 @@ class SentRecsManager {
       }</button>
         </div>
         <div class="songs-list ${isExpanded ? "" : "hidden"}">
-          ${friendRecs
-            .map(
-              (rec) => `
-              <div class="song-item" data-recommendation-id="${
-                rec.recommendation_id
-              }">
-                <div class="song-album-cover">
-                  <img src="${
-                    rec.track_cover ||
-                    "https://via.placeholder.com/60x60/1db954/white?text=♪"
-                  }" alt="${rec.title}" class="album-cover">
-                </div>
-                <div class="song-details">
-                  <div class="song-info">
-                    <span class="song-title">${rec.title}</span>
-                    <span class="song-artist">${rec.artist}</span>
-                  </div>
-                </div>
-                <div class="song-actions">
-                    <div class="song-status">
-                      ${getStatusIndicator(rec.like_dislike)}
-                    </div>
-                  </div>
-                <div class="sent-comment-actions">
-                      <button class="reply-btn" data-friend-name="${friendName}" data-rec-id="${rec.recommendation_id}" title="Reply to ${friendName}">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-                        </svg>
-                        Reply
-                      </button>
-                    </div>
+  ${friendRecs
+    .map(
+      (rec) => `
+        <div class="song-item" data-recommendation-id="${
+          rec.recommendation_id
+        }">
+          <div class="song-details">
+            <div class="song-info-actions-row">
+              <div class="song-album-cover">
+                <img src="${
+                  rec.track_cover ||
+                  "https://via.placeholder.com/60x60/1db954/white?text=♪"
+                }" alt="${rec.title}" class="album-cover">
               </div>
-            `
-            )
-            .join("")}
+              <div class="song-info">
+                <span class="song-title">${rec.title}</span>
+                <span class="song-artist">${rec.artist}</span>
+              </div>
+              <div class="song-actions">
+                <div class="song-status">
+                  ${getStatusIndicator(rec.like_dislike)}
+                </div>
+              </div>
+              ${rec.comment ? 
+              `<div class="sent-comment-actions">
+                <button class="reply-btn" data-friend-name="${friendName}" data-rec-id="${rec.recommendation_id}" title="Reply to ${friendName}">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                  </svg>
+                  ${rec.reply ? `Reply` : `Comment`}
+                </button>
+              </div>` : ""}
+            </div>
+            ${rec.reply ? `<div class="song-comment-section">
+              <div class="comment-bubble">
+                <span class="comment-text">${rec.reply}</span>
+              </div>
+            </div>` : ""}
+            
+          </div>
         </div>
-      </div>
+      `
+    )
+    .join("")}
+</div>
     `;
     }
 
     this.sentContainer.innerHTML = html;
     this.setupExpandCollapseActions();
+    this.setupReplyActions();
+  }
+
+  setupReplyActions() {
+    this.sentContainer = this.getContainer();
+    if (!this.sentContainer) return;
+    this.sentContainer.querySelectorAll(".reply-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const friendName = btn.dataset.friendName;
+        const recId = btn.dataset.recId;
+        showCommentPopup({
+          type: "comment",
+          friendName: friendName,
+          recommendationId: recId,
+          onSuccess: (replyText) => {
+            // Update cache immediately
+            this.updateReplyInCache(recId, replyText);
+
+            // Remove reply button from UI
+            this.removeReplyButton(recId);
+          },
+        });
+      });
+    });
+  }
+
+  updateReplyInCache(recommendationId, commentText) {
+    // Find and update the recommendation in cache
+    for (const [userId, userRecs] of Object.entries(
+      this.cachedRecommendations
+    )) {
+      const recIndex = userRecs.findIndex(
+        (rec) =>
+          rec.recommendation_id.toString() === recommendationId.toString()
+      );
+      if (recIndex !== -1) {
+        // Update the recommendation with reply
+        userRecs[recIndex].comment = commentText;
+
+        // Update hash for change detection
+        this.lastRecHash = this.generateRecHash(this.cachedRecommendations);
+
+        console.log(
+          `Updated comment for recommendation ${recommendationId} in cache`
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  removeReplyButton(recommendationId) {
+    const songItem = this.sentContainer?.querySelector(
+      `[data-rec-id="${recommendationId}"]`
+    );
+    if (songItem) {
+      const commentActions = songItem.querySelector(".sent-comment-actions");
+      if (commentActions) {
+        commentActions.remove();
+      }
+    }
   }
 
   setupExpandCollapseActions() {
@@ -487,6 +619,91 @@ class SentRecsManager {
     } catch (error) {
       console.error("Error loading expanded states:", error);
       this.expandedStates = new Set();
+    }
+  }
+
+  updateCommentInCache(recommendationId, replyText) {
+    // Find and update the recommendation in cache
+    for (const [userId, userRecs] of Object.entries(
+      this.cachedRecommendations
+    )) {
+      const recIndex = userRecs.findIndex(
+        (rec) =>
+          rec.recommendation_id.toString() === recommendationId.toString()
+      );
+      if (recIndex !== -1) {
+        // Update the recommendation with comment
+        userRecs[recIndex].reply = replyText;
+
+        // Update hash for change detection
+        this.lastRecHash = this.generateRecHash(this.cachedRecommendations);
+
+        console.log(
+          `Updated comment for recommendation ${recommendationId} in cache`
+        );
+        return true;
+      }
+    }
+    return false;
+  }
+
+  addOrUpdateCommentInUI(recommendationId, replyText) {
+    const songItem = this.sentContainer?.querySelector(
+      `[data-rec-id="${recommendationId}"]`
+    );
+    if (!songItem) return;
+
+    const songDetails = songItem.querySelector(".song-details");
+    const songInfoActionsRow = songDetails.querySelector(
+      ".song-info-actions-row"
+    );
+
+    // Check if comment section already exists
+    let commentSection = songDetails.querySelector(".song-comment-section");
+
+    if (commentSection) {
+      // Update existing comment
+      const commentTextElement = commentSection.querySelector(".comment-text");
+      if (commentTextElement) {
+        commentTextElement.textContent = replyText;
+      }
+    } else {
+      // Create new comment section
+      const commentHtml = `
+      <div class="song-comment-section">
+        <div class="comment-bubble">
+          <span class="comment-text">${replyText}</span>
+        </div>
+      </div>
+    `;
+
+      // Insert after the song-info-actions-row
+      songInfoActionsRow.insertAdjacentHTML("afterend", commentHtml);
+      
+    }
+
+    const commentActionsDiv = songDetails.querySelector(".sent-comment-actions");
+    if (commentActionsDiv) {
+      const replyBtn = commentActionsDiv.querySelector(".reply-btn");
+      if (replyBtn) {
+        // Check if there's now a comment (either existing or just added)
+        const hasComment = songDetails.querySelector(".song-comment-section") !== null;
+        
+        // Update button text - show "Reply" if there's a comment, "Comment" if not
+        const buttonText = hasComment ? "Reply" : "Comment";
+        
+        // Find the text node in the button (it's after the SVG)
+        const textNodes = Array.from(replyBtn.childNodes).filter(node => 
+          node.nodeType === Node.TEXT_NODE && node.textContent.trim()
+        );
+        
+        if (textNodes.length > 0) {
+          textNodes[0].textContent = buttonText;
+        } else {
+          // If no text node exists, append the text
+          replyBtn.appendChild(document.createTextNode(buttonText));
+        }
+      }
     }
   }
 

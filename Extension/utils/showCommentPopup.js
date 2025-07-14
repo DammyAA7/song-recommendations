@@ -117,8 +117,8 @@ function showCommentPopup(options) {
       sendBtn.innerHTML = isReply ? 'Sending Reply...' : 'Adding Comment...';
       
       try {
-        isReply ? await sendReply(recommendationId, commentText) :
-        await sendComment(recommendationId, commentText);
+        isReply ? await sendReceiverComment(recommendationId, commentText) :
+        await sendSenderComment(recommendationId, commentText);
         
         // Show success message
         showMessage(
