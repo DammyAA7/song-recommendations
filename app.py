@@ -994,8 +994,8 @@ def get_user_recommendations():
                 r.user_id          AS recommended_by,
                 u.spotify_display_name AS friend_name,
                 u.spotify_avatar_url   AS friend_avatar,
-                rc.comment,
-                rc.reply
+                rc.rec_sender,
+                rc.rec_receiver
             FROM recommendations r
             JOIN recommendation_songs rs
               ON rs.recommendation_id = r.id
@@ -1038,7 +1038,7 @@ def get_user_recommendations():
                 'friend_avatar'    : row['friend_avatar'],
                 'like_dislike'     : row['like_dislike'],  # 1 = like, 0 = dislike, None = pending
                 'rec_sender'       : row['rec_sender'],       # Comment from the recommender
-                'rec_reciever'     : row['rec_reciever'] 
+                'rec_receiver'     : row['rec_receiver'] 
             })
         return jsonify(output)
         
