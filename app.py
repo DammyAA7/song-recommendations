@@ -1368,7 +1368,7 @@ def get_listen_count(recommendation_id):
         cursor.close()
         conn.close()
 
-@app.route('/send_comment', methods=['POST'])
+@app.route('/send_rec_sender_comment', methods=['POST'])
 @ensure_token  # Ensure the access token is valid before proceeding 
 def send_rec_comment():
     access_token = session.get('access_token')

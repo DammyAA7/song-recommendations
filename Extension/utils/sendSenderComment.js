@@ -7,7 +7,7 @@
 async function sendSenderComment(recommendationId, rec_sender) {
   try {
     const response = await fetch(
-      "https://recspot-e6585868d70b.herokuapp.com//send_rec_sender_comment",
+      "https://recspot-e6585868d70b.herokuapp.com/send_rec_sender_comment",
       {
         method: "POST",
         headers: {

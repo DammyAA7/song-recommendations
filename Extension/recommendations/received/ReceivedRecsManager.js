@@ -104,14 +104,14 @@ class ReceivedRecsManager {
           console.log("Recommendation exists in cache");
 
           // Update cache with comment if changed
-          if (commentText) {
-            this.updateSenderTextInCache(recId, commentText);
-            this.addOrUpdateSenderTextInUI(recId, commentText);
+          if (SenderText) {
+            this.updateSenderTextInCache(recId, SenderText);
+            this.addOrUpdateSenderTextInUI(recId, SenderText);
           }
 
           // Update cache with reply if changed
-          if (replyText) {
-            this.updateReceiverTextInCache(recId, replyText);
+          if (ReceiverText) {
+            this.updateReceiverTextInCache(recId, ReceiverText);
             this.removeReplyButton(recId);
           }
         }
@@ -296,25 +296,25 @@ class ReceivedRecsManager {
           </div>
         </div>
         ${
-          rec.comment
+          rec.rec_sender
             ? `
           <div class="song-comment-section">
             <div class="comment-bubble">
-              <span class="comment-text">${rec.comment}</span>
+              <span class="comment-text">${rec.rec_sender}</span>
             </div>
           </div>
         `
             : ""
         }
         ${
-          !rec.reply
+          !rec.rec_receiver
             ? `
           <div class="comment-actions">
             <button class="reply-btn" data-friend-name="${rec.display_name}" data-rec-id="${rec.recommendation_id}" title="Reply to ${rec.display_name}">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
               </svg>
-              ${rec.comment ? `Reply` : `Comment`}
+              ${rec.rec_sender ? `Reply` : `Comment`}
             </button>
           </div>
         `
@@ -634,23 +634,23 @@ class ReceivedRecsManager {
                       </div>
                     </div>
                     ${
-                      rec.comment
+                      rec.rec_sender
                         ? `<div class="song-comment-section">
                         <div class="comment-bubble">
-                          <span class="comment-text">${rec.comment}</span>
+                          <span class="comment-text">${rec.rec_sender}</span>
                         </div>
                       </div>`
                         : ""
                     }
                     ${
-                      rec.reply
+                      rec.rec_receiver
                         ? ""
                         : `<div class="comment-actions">
                       <button class="reply-btn" data-friend-name="${userName}" data-rec-id="${rec.recommendation_id}" title="Reply to ${userName}">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
                         </svg>
-                        ${rec.comment ? `Reply` : `Comment`}
+                        ${rec.rec_sender ? `Reply` : `Comment`}
                       </button>
                     </div>`
                     }
@@ -752,7 +752,7 @@ class ReceivedRecsManager {
       );
       if (recIndex !== -1) {
         // Update the recommendation with reply
-        userRecs[recIndex].reply = replyText;
+        userRecs[recIndex].rec_receiver = replyText;
 
         // Update hash for change detection
         this.lastRecHash = this.generateRecHash(this.cachedRecommendations);
@@ -875,7 +875,7 @@ class ReceivedRecsManager {
       );
       if (recIndex !== -1) {
         // Update the recommendation with comment
-        userRecs[recIndex].comment = commentText;
+        userRecs[recIndex].rec_sender = commentText;
 
         // Update hash for change detection
         this.lastRecHash = this.generateRecHash(this.cachedRecommendations);
