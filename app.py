@@ -1071,9 +1071,12 @@ def get_sent_recommendations():
               r.friend_id           AS recommended_to,
               u.spotify_display_name AS friend_name,
               u.spotify_avatar_url   AS friend_avatar
+              rc.rec_sender,
+              rc.rec_receiver
             FROM recommendations      r
             JOIN recommendation_songs  rs ON rs.recommendation_id = r.id
             JOIN users                u  ON u.spotify_user_id   = r.friend_id
+            LEFT JOIN recommendation_comments rc ON rc.recommendation_id = r.id
             WHERE r.user_id = %s
             ORDER BY r.created_at DESC
         """, (user_id,))
@@ -1105,7 +1108,9 @@ def get_sent_recommendations():
                 'recommended_to'    : row['recommended_to'],
                 'friend_name'       : row['friend_name'],
                 'friend_avatar'     : row['friend_avatar'],
-                'like_dislike'      : row['like_dislike']   # 1 = like, 0 = dislike, None = pending
+                'like_dislike'      : row['like_dislike'],   # 1 = like, 0 = dislike, None = pending
+                'rec_sender'       : row['rec_sender'],       # Comment from the recommender
+                'rec_receiver'     : row['rec_receiver'] 
             })
         return jsonify(out)
         

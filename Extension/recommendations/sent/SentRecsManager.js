@@ -82,21 +82,21 @@ class SentRecsManager {
       null,
       async (payload) => {
         const recId = payload.new.recommendation_id;
-        const commentText = payload.new.comment;
-        const replyText = payload.new.reply;
+        const receiverText = payload.new.rec_receiver;
+        const senderText = payload.new.rec_sender;
         // Check if recommendation already exists in cache
         const existsInCache = this.isRecommendationInCache(recId);
         if (existsInCache) {
           console.log("Recommendation exists in cache");
           // Update cache with reply if changed
-          if (replyText) {
-            this.updateCommentInCache(recId, replyText);
-            this.addOrUpdateCommentInUI(recId, replyText);
+          if (receiverText) {
+            this.updateReceiverTextInCache(recId, receiverText);
+            this.addOrUpdateReceiverTextInUI(recId, receiverText);
           }
 
           // Update cache with comment if changed
-          if (commentText) {
-            this.updateReplyInCache(recId, commentText);
+          if (senderText) {
+            this.updateSenderTextInCache(recId, senderText);
             this.removeReplyButton(recId);
           }
         }
@@ -109,8 +109,8 @@ class SentRecsManager {
       null,
       async (payload) => {
         const recId = payload.new.recommendation_id;
-        const commentText = payload.new.comment;
-        const replyText = payload.new.reply;
+        const receiverText = payload.new.rec_receiver;
+        const senderText = payload.new.rec_sender;
         console.log("Comment payload received:", payload);
         // Check if recommendation already exists in cache
         const existsInCache = this.isRecommendationInCache(recId);
@@ -118,14 +118,14 @@ class SentRecsManager {
           console.log("Recommendation exists in cache");
 
           // Update cache with reply if changed
-          if (replyText) {
-            this.updateCommentInCache(recId, replyText);
-            this.addOrUpdateCommentInUI(recId, replyText);
+          if (receiverText) {
+            this.updateReceiverTextInCache(recId, receiverText);
+            this.addOrUpdateReceiverTextInUI(recId, receiverText);
           }
 
           // Update cache with comment if changed
-          if (commentText) {
-            this.updateReplyInCache(recId, commentText);
+          if (senderText) {
+            this.updateSenderTextInCache(recId, senderText);
             this.removeReplyButton(recId);
           }
         }
@@ -221,15 +221,15 @@ class SentRecsManager {
     return {
       recommendation_id: data.recommendation_id,
       recommended_by: data.friend_id,
-      display_name: data.friend_name,
+      friend_name: data.friend_name,
       friend_avatar: data.friend_avatar,
       song_id: data.song_id,
       title: data.song_title,
       artist: data.artist,
       track_cover: data.track_cover,
       like_dislike: data.like_dislike,
-      comment: data.comment,
-      reply: data.reply,
+      rec_sender: data.rec_sender,
+      rec_receiver: data.rec_receiver,
     };
   }
 
@@ -237,21 +237,21 @@ class SentRecsManager {
     // Store the updated user's data
     let userRecs;
 
-    if (this.cachedRecommendations[newRec.display_name]) {
+    if (this.cachedRecommendations[newRec.friend_name]) {
       // Add to existing user's recommendations
-      this.cachedRecommendations[newRec.display_name].unshift(newRec);
-      userRecs = this.cachedRecommendations[newRec.display_name];
+      this.cachedRecommendations[newRec.friend_name].unshift(newRec);
+      userRecs = this.cachedRecommendations[newRec.friend_name];
     } else {
       // Create new entry for this user
       userRecs = [newRec];
     }
 
     // Remove the user from current position and add them to the top
-    delete this.cachedRecommendations[newRec.display_name];
+    delete this.cachedRecommendations[newRec.friend_name];
 
     // Recreate the cache with the updated user first
     this.cachedRecommendations = {
-      [newRec.display_name]: userRecs,
+      [newRec.friend_name]: userRecs,
       ...this.cachedRecommendations,
     };
 
@@ -340,19 +340,19 @@ class SentRecsManager {
                   ${getStatusIndicator(rec.like_dislike)}
                 </div>
               </div>
-              ${rec.comment ? 
+              ${!rec.rec_sender ? 
               `<div class="sent-comment-actions">
                 <button class="reply-btn" data-friend-name="${friendName}" data-rec-id="${rec.recommendation_id}" title="Reply to ${friendName}">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
                   </svg>
-                  ${rec.reply ? `Reply` : `Comment`}
+                  ${rec.rec_receiver? `Reply` : `Comment`}
                 </button>
               </div>` : ""}
             </div>
-            ${rec.reply ? `<div class="song-comment-section">
+            ${rec.rec_receiver ? `<div class="song-comment-section">
               <div class="comment-bubble">
-                <span class="comment-text">${rec.reply}</span>
+                <span class="comment-text">${rec.rec_receiver}</span>
               </div>
             </div>` : ""}
             
@@ -382,9 +382,9 @@ class SentRecsManager {
           type: "comment",
           friendName: friendName,
           recommendationId: recId,
-          onSuccess: (replyText) => {
+          onSuccess: (senderText) => {
             // Update cache immediately
-            this.updateReplyInCache(recId, replyText);
+            this.updateReplyInCache(recId, senderText);
 
             // Remove reply button from UI
             this.removeReplyButton(recId);
@@ -394,7 +394,7 @@ class SentRecsManager {
     });
   }
 
-  updateReplyInCache(recommendationId, commentText) {
+  updateSenderTextInCache(recommendationId, senderText) {
     // Find and update the recommendation in cache
     for (const [userId, userRecs] of Object.entries(
       this.cachedRecommendations
@@ -405,7 +405,7 @@ class SentRecsManager {
       );
       if (recIndex !== -1) {
         // Update the recommendation with reply
-        userRecs[recIndex].comment = commentText;
+        userRecs[recIndex].rec_sender = senderText;
 
         // Update hash for change detection
         this.lastRecHash = this.generateRecHash(this.cachedRecommendations);
@@ -563,9 +563,7 @@ class SentRecsManager {
         this.cachedRecommendations = groupedRecommendations;
         this.lastRecHash = this.generateRecHash(groupedRecommendations);
         this.lastFetchTime = Date.now();
-        console.log(
-          `Cached ${Object.keys(groupedRecommendations).length} friend sentRecs`
-        );
+        console.log("Initial sent recommendations loaded successfully", groupedRecommendations);
       }
     } catch (error) {
       console.error("Error loading initial sentRecs:", error);
@@ -622,7 +620,7 @@ class SentRecsManager {
     }
   }
 
-  updateCommentInCache(recommendationId, replyText) {
+  updateReceiverTextInCache(recommendationId, receiverText) {
     // Find and update the recommendation in cache
     for (const [userId, userRecs] of Object.entries(
       this.cachedRecommendations
@@ -633,7 +631,7 @@ class SentRecsManager {
       );
       if (recIndex !== -1) {
         // Update the recommendation with comment
-        userRecs[recIndex].reply = replyText;
+        userRecs[recIndex].rec_receiver = receiverText;
 
         // Update hash for change detection
         this.lastRecHash = this.generateRecHash(this.cachedRecommendations);
@@ -647,7 +645,8 @@ class SentRecsManager {
     return false;
   }
 
-  addOrUpdateCommentInUI(recommendationId, replyText) {
+  addOrUpdateReceiverTextInUI(recommendationId, receiverText) {
+    this.sentContainer = this.getContainer();
     const songItem = this.sentContainer?.querySelector(
       `[data-rec-id="${recommendationId}"]`
     );
@@ -665,14 +664,14 @@ class SentRecsManager {
       // Update existing comment
       const commentTextElement = commentSection.querySelector(".comment-text");
       if (commentTextElement) {
-        commentTextElement.textContent = replyText;
+        commentTextElement.textContent = receiverText;
       }
     } else {
       // Create new comment section
       const commentHtml = `
       <div class="song-comment-section">
         <div class="comment-bubble">
-          <span class="comment-text">${replyText}</span>
+          <span class="comment-text">${receiverText}</span>
         </div>
       </div>
     `;
