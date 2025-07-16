@@ -36,7 +36,6 @@ A Flask-based API that leverages the Spotify Web API for user authentication and
 <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-F7DF1E.svg?style=flat&logo=JavaScript&logoColor=black" class="inline-block mx-1" style="margin: 0px 2px;">
 <img alt="Supabase" src="https://img.shields.io/badge/Supabase-3FCF8E.svg?style=flat&logo=Supabase&logoColor=white" class="inline-block mx-1" style="margin: 0px 2px;">
 <img alt="Heroku" src="https://img.shields.io/badge/Heroku-430098.svg?style=flat&logo=Heroku&logoColor=white" class="inline-block mx-1" style="margin: 0px 2px;">
-<br>
 <img alt="Python" src="https://img.shields.io/badge/Python-3776AB.svg?style=flat&logo=Python&logoColor=white" class="inline-block mx-1" style="margin: 0px 2px;">
 </div>
 
