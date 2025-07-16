@@ -117,11 +117,6 @@ class ReceivedRecsManager {
         }
       }
     );
-    /*
-    this.supabaseClient.subscribe("requests", "DELETE", null, (payload) => {
-      console.log("Request removed:", payload);
-      this.handleRequestRemoved(payload.old);
-    });*/
   }
 
   async fetchRecommendation(recId) {
@@ -142,7 +137,7 @@ class ReceivedRecsManager {
       recommendation_id: data.recommendation_id,
       recommended_by: data.recommended_by_id,
       display_name: data.recommended_by_name,
-      avatar_url: data.recommended_by_avatar,
+      friend_avatar: data.recommended_by_avatar,
       song_id: data.song_id,
       title: data.song_title,
       artist: data.artist,

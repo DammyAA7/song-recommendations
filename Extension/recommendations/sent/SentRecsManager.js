@@ -161,7 +161,7 @@ class SentRecsManager {
   updateLikeStatusInUI(recommendationId, likeDislike) {
     // Find the song item in the DOM using the recommendation ID
     const songItem = document.querySelector(
-      `[data-recommendation-id="${recommendationId}"]`
+      `[data-rec-id="${recommendationId}"]`
     );
 
     if (!songItem) {
@@ -320,7 +320,7 @@ class SentRecsManager {
   ${friendRecs
     .map(
       (rec) => `
-        <div class="song-item" data-recommendation-id="${
+        <div class="song-item" data-rec-id="${
           rec.recommendation_id
         }">
           <div class="song-details">
@@ -384,7 +384,7 @@ class SentRecsManager {
           recommendationId: recId,
           onSuccess: (senderText) => {
             // Update cache immediately
-            this.updateReplyInCache(recId, senderText);
+            this.updateSenderTextInCache(recId, senderText);
 
             // Remove reply button from UI
             this.removeReplyButton(recId);
@@ -646,7 +646,6 @@ class SentRecsManager {
   }
 
   addOrUpdateReceiverTextInUI(recommendationId, receiverText) {
-    this.sentContainer = this.getContainer();
     const songItem = this.sentContainer?.querySelector(
       `[data-rec-id="${recommendationId}"]`
     );

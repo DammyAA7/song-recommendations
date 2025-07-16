@@ -203,6 +203,7 @@
 .song-status {
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .status-indicator {
