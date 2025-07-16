@@ -1,287 +1,158 @@
-# Music Recommendation API
+<div align="center" class="text-center">
+<h1>SPOTIFY FRIEND SONG RECOMMENDATION TOOL</h1>
+<p><em>Discover Music, Share Joy, Connect Instantly</em></p>
 
-A simple Flask application with an SQLite database that provides song data, recommendations by artist genre and recomend songs to friends. This project helped me improve my SQL skills and get hands-on experience with a Python framework.
+<img alt="last-commit" src="https://img.shields.io/github/last-commit/DammyAA7/song-recommendations?style=flat&logo=git&logoColor=white&color=0080ff" class="inline-block mx-1" style="margin: 0px 2px;">
+<img alt="repo-top-language" src="https://img.shields.io/github/languages/top/DammyAA7/song-recommendations?style=flat&color=0080ff" class="inline-block mx-1" style="margin: 0px 2px;">
+<img alt="repo-language-count" src="https://img.shields.io/github/languages/count/DammyAA7/song-recommendations?style=flat&color=0080ff" class="inline-block mx-1" style="margin: 0px 2px;">
+
+</div>
+
+A Flask-based API that leverages the Spotify Web API for user authentication and song recommendations. The application uses a PostgreSQL(Supabase) database to store user data, recommendations, and OAuth tokens.
 
 ---
 
 ## Features
 
-- Fetch all songs with artist names, release years, and play counts.
-- Get song recommendations based on the genre of a given song.
-- Easy setup with SQLite.
+- **Spotify OAuth 2.0 Integration:** Securely authenticate users via their Spotify accounts.
+- **Persistent Sessions:** Keeps users logged in across sessions.
+- **Token Management:** Automatically handles refreshing of expired access tokens.
+- **User Profile:** Fetches and stores user profile information from Spotify.
+- **Chrome Extension:** A companion browser extension to interact with the API from the browser.
+- **Song Recommendations:**
+  - Recommend songs to other users.
+  - Get recommendations from other users.
+  - Get recommendations based on an artist's genre.
 
 ---
 
 ## Technologies
 
-- Python 3
-- Flask
-- SQLite
-- NextJs
+<div align="center">
+<p><em>Built with the tools and technologies:</em></p>
+<img alt="Flask" src="https://img.shields.io/badge/Flask-000000.svg?style=flat&logo=Flask&logoColor=white" class="inline-block mx-1" style="margin: 0px 2px;">
+<img alt="HTML5" src="https://img.shields.io/badge/HTML5-E34F26.svg?style=flat&logo=HTML5&logoColor=white" class="inline-block mx-1" style="margin: 0px 2px;">
+<img alt="CSS3" src="https://img.shields.io/badge/CSS3-1572B6.svg?style=flat&logo=CSS3&logoColor=white" class="inline-block mx-1" style="margin: 0px 2px;">
+<img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-F7DF1E.svg?style=flat&logo=JavaScript&logoColor=black" class="inline-block mx-1" style="margin: 0px 2px;">
+<img alt="Supabase" src="https://img.shields.io/badge/Supabase-3FCF8E.svg?style=flat&logo=Supabase&logoColor=white" class="inline-block mx-1" style="margin: 0px 2px;">
+<img alt="Heroku" src="https://img.shields.io/badge/Heroku-430098.svg?style=flat&logo=Heroku&logoColor=white" class="inline-block mx-1" style="margin: 0px 2px;">
+<br>
+<img alt="Python" src="https://img.shields.io/badge/Python-3776AB.svg?style=flat&logo=Python&logoColor=white" class="inline-block mx-1" style="margin: 0px 2px;">
+</div>
 
 ---
 
 ## Prerequisites
 
-- Python 3.6 or higher installed on your system.
-- `pip` for package management.
+- Python 3.8 or higher
+- `pip` for package management
+- A PostgreSQL database instance (the free tier from Supabase is a good option)
+- A Spotify Developer account and an application to get API credentials.
 
 ---
 
-## Installation
+## Installation & Setup
 
-1. **Clone the repository**
+### Backend
 
-   ```bash
-   git clone https://github.com/DammyAA7/song-recommendations.git
-   cd song-recommendations
-   ```
+1.  **Clone the repository**
 
-2. **Create and activate a virtual environment**
+    ```bash
+    git clone https://github.com/DammyAA7/song-recommendations.git
+    cd song-recommendations
+    ```
 
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate      # On macOS/Linux
-   venv\Scripts\activate.bat   # On Windows
-   ```
+2.  **Create and activate a virtual environment**
 
-3. **Install dependencies**
+    ```bash
+    python3 -m venv .venv
+    source .venv/bin/activate      # On macOS/Linux
+    .venv\Scripts\activate.bat     # On Windows
+    ```
 
-   ```bash
-   pip install Flask
-   ```
+3.  **Install dependencies**
 
----
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-## Database Setup
+4.  **Set up Environment Variables**
 
-The project uses an SQLite database named `catalog.db`. A schema script is provided to set up the tables and seed data.
+    Create a file named `.env` in the root of the project and add the following variables. These are essential for connecting to the database and the Spotify API.
 
-**Run the command in your terminal to run the schema.sql file and create the database**
+    ```ini
+    # PostgreSQL Database URL
+    DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE_NAME"
 
-```bash
-sqlite3 catalog.db < /path/to/schema.sql
-```
+    # Spotify API Credentials
+    SPOTIFY_CLIENT_ID="your_spotify_client_id"
+    SPOTIFY_CLIENT_SECRET="your_spotify_client_secret"
+    SPOTIFY_REDIRECT_URI="http://127.0.0.1:5000/callback"
 
----
+    # Flask Session Secret Key
+    SESSION_SECRET_KEY="a_strong_and_random_secret_key"
+    ```
 
-## Running the Application
+    **Note:** For the `SPOTIFY_REDIRECT_URI`, make sure to add this exact URI to your Spotify application settings on the developer dashboard.
 
-1. **Start the Flask server**
+5.  **Database Setup**
 
-   ```bash
-   python3 app.py
-   ```
+    The `schema.sql` file contains the necessary SQL commands to create the database tables. Connect to your PostgreSQL instance and run the script.
 
-2. The server runs by default at `http://127.0.0.1:5000/` in debug mode.
+    ```bash
+    psql -d YOUR_DATABASE_NAME -a -f schema.sql
+    ```
 
----
+6.  **Run the application**
+
+    ```bash
+    flask run
+    ```
+
+    The server will run at `http://127.0.0.1:5000/`.
+
+### Chrome Extension
+
+1.  Open Chrome and navigate to `chrome://extensions`.
+2.  Enable **Developer mode** by toggling the switch in the top-right corner.
+3.  Click on the **"Load unpacked"** button.
+4.  Select the `Extension` folder from this project's directory.
 
 ---
 
 ## API Endpoints
 
-### Get All Songs
+### Authentication
 
-- **URL:** `/songs`
-- **Method:** `GET`
-- **Description:** Returns a JSON list of all songs with their IDs, titles, artist names, release years, and play counts.
+-   **`GET /login`**
 
-#### Sample Request
+    Initiates the Spotify authentication process. Returns a JSON object with the Spotify authorization URL.
 
-```bash
-curl http://127.0.0.1:5000/songs
-```
+-   **`GET /callback`**
 
-#### Sample Response
+    The redirect URI after the user authorizes the application on Spotify. It exchanges the authorization code for an access token and refresh token, stores them, and fetches the user's profile.
 
-```json
-[
-  {
-    "song_id": 1,
-    "title": "Blinding Lights",
-    "artist": "The Weeknd",
-    "year": 2019,
-    "play_count": 1500
-  }
-]
-```
+-   **`GET /check_auth`**
 
----
+    Checks if the current user is authenticated. Requires a valid session cookie.
 
-### Recommend by Artist Genre
+-   **`POST /logout`**
 
-- **URL:** `/recommend/artist/<song_id>`
-- **Method:** `GET`
-- **Description:** Returns a JSON list of songs in the same genre as the provided `song_id`, excluding that song itself.
+    Logs the user out by clearing the session.
 
-#### URL Parameters
+### Recommendations
 
-- `song_id`: Integer — ID of the reference song.
+-   **`PUT /recommend`**
 
-#### Sample Request
+    Recommends a song to another user. Requires a JSON body with `user_id`, `friend_id`, and `song_id`.
 
-```bash
-curl http://127.0.0.1:5000/recommend/artist/1
-```
+-   **`GET /recommend/user/<user_id>`**
 
-#### Sample Response
+    Gets a list of songs recommended to a specific user.
 
-```json
-[
-  {
-    "song_id": 5,
-    "title": "Save Your Tears",
-    "artist": "The Weeknd",
-    "play_count": 1300,
-    "genre": "R&B"
-  }
-]
-```
+-   **`GET /recommend/artist/<song_id>`**
 
-#### Error Handling
-
-```json
-{ "error": "Song not found" }
-```
-
----
-
-### Get User Recommendations
-
-- **URL:** `/recommend/user/<user_id>`
-- **Method:** `GET`
-- **Description:** Returns songs recommended _to_ the user (i.e. `friend_id`) by other users. Includes the recommending user ID, song details, and artist info.
-
-#### URL Parameters
-
-- `user_id`: Integer — ID of the user to whom songs were recommended.
-
-#### Sample Request
-
-```bash
-curl http://127.0.0.1:5000/recommend/user/2
-```
-
-#### Sample Response
-
-```json
-[
-  {
-    "song_id": 3,
-    "title": "Starboy",
-    "artist": "The Weeknd",
-    "year": 2016,
-    "play_count": 1400,
-    "recommended_by": 1
-  }
-]
-```
-
----
-
-### Welcome Message
-
-- **URL:** `/`
-- **Method:** `GET`
-- **Description:** Returns a simple welcome message to confirm the API is running.
-
-#### Sample Response
-
-```text
-Welcome to the Song Recommendation API!
-```
-
----
-
-### Recommend a Song to a Friend
-
-- **URL:** `/recommend`
-
-- **Method:** `PUT`
-
-- **Description:** Recommends a song from one user to another. A user cannot recommend the same song more than once to the same friend, nor can they recommend a song to themselves.
-
-- **Request Body:** JSON object containing:
-
-  - `user_id` (integer): ID of the user making the recommendation
-  - `friend_id` (integer): ID of the user receiving the recommendation
-  - `song_id` (integer): ID of the song being recommended
-
-#### Sample Request
-
-```bash
-curl -X PUT http://127.0.0.1:5000/recommend \
-  -H "Content-Type: application/json" \
-  -d '{"user_id": 1, "friend_id": 2, "song_id": 5}'
-```
-
-#### Success Response
-
-- **Status Code:** `201 Created`
-
-```json
-{ "message": "Song successfully recommended!" }
-```
-
-#### Error Responses
-
-- **Missing fields:**
-
-  - **Status Code:** `400 Bad Request`
-
-  ```json
-  { "error": "Missing user_id, friend_id or song_id" }
-  ```
-
-- **Self-recommendation:**
-
-  - **Status Code:** `400 Bad Request`
-
-  ```json
-  { "error": "Cannot recommend a song to yourself" }
-  ```
-
-- **User does not exist:**
-
-  - **Status Code:** `404 Not Found`
-
-  ```json
-  { "error": "Recommending user does not exist" }
-  ```
-
-- **Friend does not exist:**
-
-  - **Status Code:** `404 Not Found`
-
-  ```json
-  { "error": "Friend user does not exist" }
-  ```
-
-- **Song does not exist:**
-
-  - **Status Code:** `404 Not Found`
-
-  ```json
-  { "error": "Song does not exist" }
-  ```
-
-- **Duplicate recommendation:**
-
-  - **Status Code:** `200 OK`
-
-  ```json
-  { "message": "Song has already been recommended to this user" }
-  ```
-
----
-
-## Next Steps
-
-- Add POST endpoints to create, update, and delete song recommendations.
-- Create interactive frontend (preferebly nextjs in TypeScript)
-- Add user authentication and like tracking.
-- Switch to a more robust database like PostgreSQL.
+    Gets song recommendations based on the genre of the artist of the given `song_id`.
 
 ---
 
